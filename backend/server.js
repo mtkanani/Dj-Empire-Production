@@ -30,10 +30,16 @@ const startServer = async () => {
     logger.info('⚡ Socket.IO Real-Time Engine initialized');
 
     // Start HTTP & Socket Server
-    server = httpServer.listen(env.PORT, () => {
-      logger.info(`🚀 Server running in [${env.NODE_ENV}] mode on http://localhost:${env.PORT}`);
-      logger.info(`📚 Swagger OpenAPI Docs available at http://localhost:${env.PORT}/api-docs`);
-      logger.info(`⚡ Health Endpoint available at http://localhost:${env.PORT}/api/${env.API_VERSION}/health`);
+    server = httpServer.listen(env.PORT, '0.0.0.0', () => {
+      logger.info(
+        `🚀 Server running in [${env.NODE_ENV}] mode on port ${env.PORT}`
+      );
+    
+      logger.info(`📚 Swagger OpenAPI Docs: /api-docs`);
+    
+      logger.info(
+        `⚡ Health Endpoint: /api/${env.API_VERSION}/health`
+      );
     });
 
     // Start background worker for automatic seat hold expiration (every 30s)
