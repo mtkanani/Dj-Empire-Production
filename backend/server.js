@@ -19,8 +19,16 @@ process.on('uncaughtException', (err) => {
 const startServer = async () => {
   try {
     // Test Prisma Database Connection
-    await prisma.$connect();
-    logger.info('✅ Database connected successfully via Prisma');
+    // Test Prisma Database Connection
+console.log('=== STARTUP TEST: server.js loaded ===');
+console.log('=== STARTUP TEST: PORT =', env.PORT);
+console.log('=== STARTUP TEST: NODE_ENV =', env.NODE_ENV);
+
+await prisma.$connect();
+
+console.log('=== STARTUP TEST: Prisma connected ===');
+logger.info('✅ Database connected successfully via Prisma');
+    
 
     // Create HTTP server wrapping Express
     const httpServer = http.createServer(app);
