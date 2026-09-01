@@ -24,7 +24,11 @@ console.log('=== STARTUP TEST: server.js loaded ===');
 console.log('=== STARTUP TEST: PORT =', env.PORT);
 console.log('=== STARTUP TEST: NODE_ENV =', env.NODE_ENV);
 
+console.log('=== STARTUP TEST: attempting Prisma connection ===');
+
 await prisma.$connect();
+
+console.log('=== STARTUP TEST: Prisma connected ===');
 
 console.log('=== STARTUP TEST: Prisma connected ===');
 logger.info('✅ Database connected successfully via Prisma');
@@ -69,11 +73,20 @@ logger.info('✅ Database connected successfully via Prisma');
       await prisma.$disconnect();
       process.exit(1);
     });
-  } catch (error) {
-    logger.error('Failed to start server:', error);
-    await prisma.$disconnect();
-    process.exit(1);
-  }
+  } } catch (error) {
+  console.error('========================================');
+  console.error('❌ PRISMA / SERVER STARTUP ERROR');
+  console.error('Message:', error?.message);
+  console.error('Name:', error?.name);
+  console.error('Code:', error?.code);
+  console.error('Full error:', error);
+  console.error('========================================');
+
+  logger.error('Failed to start server:', error);
+
+  await prisma.$disconnect().catch(() => {});
+  process.exit(1);
+}
 };
 
 startServer();
