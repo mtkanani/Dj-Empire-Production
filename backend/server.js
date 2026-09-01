@@ -1,4 +1,5 @@
 import http from 'http';
+import dns from 'dns/promises';
 import app from './src/app.js';
 import { env } from './src/config/env.js';
 import { logger } from './src/config/logger.js';
@@ -27,9 +28,25 @@ const startServer = async () => {
     console.log('=== STARTUP TEST: PORT =', env.PORT);
     console.log('=== STARTUP TEST: NODE_ENV =', env.NODE_ENV);
 
-    console.log('=== STARTUP TEST: attempting Prisma connection ===');
+    console.log('=== NODE DNS TEST START ===');
 
-    await prisma.$connect();
+try {
+  const dnsResult = await dns.lookup('cluster0.88ywdkx.mongodb.net', {
+    all: true,
+  });
+
+  console.log('=== NODE DNS TEST SUCCESS ===');
+  console.log(dnsResult);
+} catch (dnsError) {
+  console.error('=== NODE DNS TEST FAILED ===');
+  console.error('Message:', dnsError?.message);
+  console.error('Code:', dnsError?.code);
+  console.error('Full error:', dnsError);
+}
+
+console.log('=== STARTUP TEST: attempting Prisma connection ===');
+
+await prisma.$connect();
 
     console.log('=== STARTUP TEST: Prisma connected ===');
 
