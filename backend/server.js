@@ -1,5 +1,4 @@
 import http from 'http';
-import dns from 'dns/promises';
 import app from './src/app.js';
 import { env } from './src/config/env.js';
 import { logger } from './src/config/logger.js';
@@ -12,110 +11,97 @@ let expiryWorkerInterval;
 
 // Handle Uncaught Exceptions
 process.on('uncaughtException', (err) => {
-  logger.error('UNCAUGHT EXCEPTION! 💥 Shutting down...', {
-    error: err.message,
-    stack: err.stack,
+  logger.error('UNCAUGHT EXCEPTION! Shutting down...', {
+    error: err?.message,
+    stack: err?.stack,
   });
 
   process.exit(1);
 });
 
-// Establish Database Connection and Start HTTP & Real-Time Socket Server
+// Start HTTP Server Immediately
 const startServer = async () => {
   try {
-    // Test Prisma Database Connection
-    console.log('=== STARTUP TEST: server.js loaded ===');
-    console.log('=== STARTUP TEST: PORT =', env.PORT);
-    console.log('=== STARTUP TEST: NODE_ENV =', env.NODE_ENV);
+    logger.info(`Starting server in [${env.NODE_ENV}] mode`);
+    logger.info(`Configured port: ${env.PORT}`);
 
-    console.log('=== NODE DNS TEST START ===');
-
-try {
-  const dnsResult = await dns.resolveSrv(
-  '_mongodb._tcp.cluster0.88ywdkx.mongodb.net'
-);
-
-  console.log('=== NODE DNS TEST SUCCESS ===');
-  console.log(dnsResult);
-} catch (dnsError) {
-  console.error('=== NODE DNS TEST FAILED ===');
-  console.error('Message:', dnsError?.message);
-  console.error('Code:', dnsError?.code);
-  console.error('Full error:', dnsError);
-}
-
-console.log('=== STARTUP TEST: attempting Prisma connection ===');
-
-await prisma.$connect();
-
-    console.log('=== STARTUP TEST: Prisma connected ===');
-
-    logger.info('✅ Database connected successfully via Prisma');
-
-    // Create HTTP server wrapping Express
+    // Create HTTP server
     const httpServer = http.createServer(app);
 
-    // Initialize Socket.IO Real-Time Engine
+    // Initialize Socket.IO
     initSocket(httpServer);
 
-    logger.info('⚡ Socket.IO Real-Time Engine initialized');
+    logger.info('Socket.IO Real-Time Engine initialized');
 
-    // Start HTTP & Socket Server
-    console.log('=== STARTUP TEST: starting HTTP server ===');
-
+    // IMPORTANT:
+    // Start listening BEFORE waiting for Prisma.
     server = httpServer.listen(env.PORT, '0.0.0.0', () => {
       logger.info(
-        `🚀 Server running in [${env.NODE_ENV}] mode on port ${env.PORT}`
+        `Server running in [${env.NODE_ENV}] mode on port ${env.PORT}`
       );
 
-      logger.info('📚 Swagger OpenAPI Docs: /api-docs');
+      logger.info('Swagger OpenAPI Docs: /api-docs');
 
       logger.info(
-        `⚡ Health Endpoint: /api/${env.API_VERSION}/health`
+        `Health Endpoint: /api/${env.API_VERSION}/health`
       );
     });
 
-    // Start background worker for automatic seat hold expiration
-    expiryWorkerInterval = setInterval(async () => {
-      try {
-        await InventoryService.releaseExpiredSeats();
-      } catch (err) {
-        logger.error(
-          `Error in seat hold release worker: ${err.message}`
-        );
-      }
-    }, 30000);
-
     // Handle HTTP Server Errors
-    server.on('error', async (err) => {
+    server.on('error', (err) => {
       if (err.code === 'EADDRINUSE') {
         logger.error(
-          `❌ Port ${env.PORT} is already in use by another process.`
+          `Port ${env.PORT} is already in use by another process.`
         );
       } else {
-        logger.error('❌ HTTP Server Error:', err);
+        logger.error('HTTP Server Error:', {
+          message: err?.message,
+          stack: err?.stack,
+        });
       }
 
-      await prisma.$disconnect();
       process.exit(1);
     });
-  } catch (error) {
-    console.error('========================================');
-    console.error('❌ PRISMA / SERVER STARTUP ERROR');
-    console.error('Message:', error?.message);
-    console.error('Name:', error?.name);
-    console.error('Code:', error?.code);
-    console.error('Full error:', error);
-    console.error('========================================');
 
+    // Connect Prisma after HTTP server has started
+    try {
+      logger.info('Connecting to database via Prisma...');
+
+      await prisma.$connect();
+
+      logger.info('Database connected successfully via Prisma');
+
+      // Start background worker only after database connection
+      expiryWorkerInterval = setInterval(async () => {
+        try {
+          await InventoryService.releaseExpiredSeats();
+        } catch (err) {
+          logger.error(
+            `Error in seat hold release worker: ${err?.message}`
+          );
+        }
+      }, 30000);
+
+      logger.info('Seat expiration worker started');
+    } catch (dbError) {
+      logger.error('Database connection failed:', {
+        message: dbError?.message,
+        name: dbError?.name,
+        code: dbError?.code,
+        stack: dbError?.stack,
+      });
+
+      // Keep HTTP server alive so health endpoint remains accessible.
+      // Database-dependent API requests should fail through normal
+      // application error handling.
+    }
+  } catch (error) {
     logger.error('Failed to start server:', {
       message: error?.message,
       name: error?.name,
       code: error?.code,
       stack: error?.stack,
     });
-
-    await prisma.$disconnect().catch(() => {});
 
     process.exit(1);
   }
@@ -125,14 +111,16 @@ startServer();
 
 // Handle Unhandled Promise Rejections
 process.on('unhandledRejection', (err) => {
-  logger.error('UNHANDLED REJECTION! 💥 Shutting down...', {
+  logger.error('UNHANDLED REJECTION! Shutting down...', {
     error: err?.message,
     stack: err?.stack,
   });
 
   if (server) {
     server.close(async () => {
-      clearInterval(expiryWorkerInterval);
+      if (expiryWorkerInterval) {
+        clearInterval(expiryWorkerInterval);
+      }
 
       await prisma.$disconnect().catch(() => {});
 
@@ -143,7 +131,7 @@ process.on('unhandledRejection', (err) => {
   }
 });
 
-// Handle Graceful Termination Signals
+// Graceful Shutdown
 const gracefulShutdown = (signal) => {
   logger.info(`Received ${signal}. Shutting down gracefully...`);
 
@@ -155,7 +143,9 @@ const gracefulShutdown = (signal) => {
     server.close(async () => {
       await prisma.$disconnect().catch(() => {});
 
-      logger.info('HTTP server and Database connection closed.');
+      logger.info(
+        'HTTP server and Database connection closed.'
+      );
 
       process.exit(0);
     });
