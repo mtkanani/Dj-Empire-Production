@@ -38,6 +38,7 @@ logger.info('✅ Database connected successfully via Prisma');
     logger.info('⚡ Socket.IO Real-Time Engine initialized');
 
     // Start HTTP & Socket Server
+    console.log('=== STARTUP TEST: starting HTTP server ===');
     server = httpServer.listen(env.PORT, '0.0.0.0', () => {
       logger.info(
         `🚀 Server running in [${env.NODE_ENV}] mode on port ${env.PORT}`
