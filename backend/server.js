@@ -31,9 +31,9 @@ const startServer = async () => {
     console.log('=== NODE DNS TEST START ===');
 
 try {
-  const dnsResult = await dns.lookup('cluster0.88ywdkx.mongodb.net', {
-    all: true,
-  });
+  const dnsResult = await dns.resolveSrv(
+  '_mongodb._tcp.cluster0.88ywdkx.mongodb.net'
+);
 
   console.log('=== NODE DNS TEST SUCCESS ===');
   console.log(dnsResult);
