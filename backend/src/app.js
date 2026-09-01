@@ -1,0 +1,56 @@
+import express from 'express';
+import helmet from 'helmet';
+import cors from 'cors';
+import morgan from 'morgan';
+import compression from 'compression';
+import swaggerUi from 'swagger-ui-express';
+
+import { env } from './config/env.js';
+import { logger } from './config/logger.js';
+import { swaggerSpec } from './config/swagger.js';
+import v1Routes from './routes/v1/index.js';
+import { notFoundHandler } from './middlewares/notFound.middleware.js';
+import { errorHandler } from './middlewares/error.middleware.js';
+
+const app = express();
+
+// 1. Security Middleware
+app.use(helmet());
+
+// 2. CORS Middleware
+app.use(cors());
+
+// 3. Compression Middleware
+app.use(compression());
+
+// 4. Request Body Parsers
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// 5. Morgan Request Logging Middleware stream to Winston
+const morganFormat = env.NODE_ENV === 'production' ? 'combined' : 'dev';
+app.use(
+  morgan(morganFormat, {
+    stream: {
+      write: (message) => logger.info(message.trim()),
+    },
+  })
+);
+
+// 6. Favicon Handler (Prevents browser 404 logs)
+app.get('/favicon.ico', (req, res) => res.status(204).end());
+
+// 7. Swagger API Documentation Endpoint
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
+
+// 7. API Routes
+app.use(`/api/${env.API_VERSION}`, v1Routes);
+
+// 8. 404 Not Found Handler
+app.use(notFoundHandler);
+
+// 9. Global Error Handler
+app.use(errorHandler);
+
+export default app;

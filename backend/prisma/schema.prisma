@@ -1,0 +1,959 @@
+// Prisma Schema Configuration for Event Booking Platform (MongoDB)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+// User Roles Enum
+enum Role {
+  SUPER_ADMIN
+  EVENT_ORGANIZER
+  GATE_MANAGER
+  SCANNER_STAFF
+  SECURITY
+  VOLUNTEER
+  CUSTOMER
+}
+
+// User Status Lifecycle Enum
+enum UserStatus {
+  PENDING_EMAIL_VERIFICATION
+  PENDING_APPROVAL
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+// Purpose for OTP generation
+enum OtpPurpose {
+  EMAIL_VERIFICATION
+  FORGOT_PASSWORD
+}
+
+// Event Organizer Approval Status
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// Comprehensive Event Status Enum (Finite State Machine)
+enum EventStatus {
+  Draft
+  PendingApproval
+  Approved
+  Rejected
+  Published
+  Unpublished
+  Cancelled
+  Completed
+  Archived
+}
+
+// Event Type Enum
+enum EventType {
+  IN_PERSON
+  ONLINE
+  HYBRID
+}
+
+// Event Visibility Enum
+enum EventVisibility {
+  PUBLIC
+  PRIVATE
+  UNLISTED
+}
+
+// Image Type Enum
+enum EventImageType {
+  BANNER
+  POSTER
+  GALLERY
+  THUMBNAIL
+}
+
+// Pricing Type Enum for Dynamic Pricing
+enum PricingType {
+  EARLY_BIRD
+  REGULAR
+  LAST_MINUTE
+  FLASH_SALE
+  WEEKEND
+  HOLIDAY
+}
+
+// Coupon Type Enum
+enum CouponType {
+  PERCENTAGE
+  FLAT_AMOUNT
+  BUY_X_GET_Y
+  STUDENT
+  CORPORATE
+  PROMO_CODE
+  REFERRAL_CODE
+}
+
+// Waitlist Status Enum
+enum WaitlistStatus {
+  WAITING
+  NOTIFIED
+  BOOKED
+  EXPIRED
+}
+
+// Comprehensive Booking Status Enum
+enum BookingStatus {
+  Pending
+  Reserved
+  AwaitingPayment
+  Confirmed
+  Cancelled
+  Expired
+  Refunded
+  CheckedIn
+}
+
+// Payment Status Enum
+enum PaymentStatus {
+  Pending
+  Created
+  Authorized
+  Captured
+  Paid
+  Failed
+  Cancelled
+  Expired
+  Refunded
+  PartiallyRefunded
+  Chargeback
+  Disputed
+}
+
+// Payment Gateway Enum
+enum PaymentGateway {
+  RAZORPAY
+  PAYPAL
+  STRIPE
+  CASH
+  BANK_TRANSFER
+}
+
+// Ticket Status Enum
+// ISSUED = confirmed unused pass, CHECKED_IN = used at gate
+enum TicketStatus {
+  ISSUED
+  CHECKED_IN
+  CANCELLED
+  EXPIRED
+}
+
+// Check-In Scan Result Enum
+enum ScanResult {
+  SUCCESS
+  DUPLICATE_SCAN
+  INVALID_SIGNATURE
+  EXPIRED_QR
+  WRONG_GATE
+  WRONG_SCHEDULE
+  WRONG_SECTION
+  CANCELLED_BOOKING
+  UNPAID_BOOKING
+  FRAUD_DETECTED
+}
+
+// User Account Model
+model User {
+  id               String            @id @default(auto()) @map("_id") @db.ObjectId
+  email            String            @unique
+  password         String
+  firstName        String
+  lastName         String
+  phone            String?          @unique
+  role             Role              @default(CUSTOMER)
+  status           UserStatus        @default(PENDING_EMAIL_VERIFICATION)
+  isDeleted        Boolean           @default(false)
+  deletedAt        DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  organizerProfile OrganizerProfile?
+  otps             OTP[]
+  refreshTokens    RefreshToken[]
+  events           Event[]           @relation("OrganizerEvents")
+  bookings         Booking[]         @relation("CustomerBookings")
+  payments         Payment[]
+  refunds          Refund[]
+  invoices         Invoice[]
+  reservations     ReservationLock[]
+  wishlists        Wishlist[]
+  reviews          Review[]
+  notifications    Notification[]
+  waitlists        Waitlist[]
+  auditLogs        AuditLog[]
+  scannedCheckIns  CheckInLog[]      @relation("ScannerStaffLogs")
+  createdScanners  ScannerAccount[]  @relation("OrganizerScanners")
+}
+
+// Event Organizer Profile (1-to-1 with User)
+model OrganizerProfile {
+  id                         String         @id @default(auto()) @map("_id") @db.ObjectId
+  userId                     String         @unique @db.ObjectId
+  user                       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyName                String
+  businessRegistrationNumber String?
+  phone                      String?
+  website                    String?
+  address                    String?
+  approvalStatus             ApprovalStatus @default(PENDING)
+  rejectionReason            String?
+  createdAt                  DateTime       @default(now())
+  updatedAt                  DateTime       @updatedAt
+}
+
+// One-Time Password (OTP) Model
+model OTP {
+  id             String     @id @default(auto()) @map("_id") @db.ObjectId
+  userId         String     @db.ObjectId
+  user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hashedOtp      String
+  purpose        OtpPurpose
+  expiresAt      DateTime
+  resendCount    Int        @default(1)
+  verifyAttempts Int        @default(0)
+  isUsed         Boolean    @default(false)
+  requestId      String?    @unique
+  hashedResetToken String?
+  resetTokenExpiresAt DateTime?
+  verifiedAt     DateTime?
+  lastSentAt     DateTime?
+  resetCompletedAt DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+}
+
+// JWT Refresh Token Storage Model
+model RefreshToken {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId     String   @db.ObjectId
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token      String   @unique
+  deviceInfo String?
+  isRevoked  Boolean  @default(false)
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+}
+
+// Master Event Category Model
+model Category {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String   @unique
+  slug        String   @unique
+  description String?
+  icon        String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  events      Event[]
+}
+
+// City Model
+model City {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String   @unique
+  slug      String   @unique
+  state     String?
+  country   String   @default("India")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  venues    Venue[]
+  events    Event[]
+}
+
+// Master Venue Model
+model Venue {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  address   String
+  cityId    String   @db.ObjectId
+  city      City     @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  capacity  Int      @default(100)
+  latitude  Float?
+  longitude Float?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  events    Event[]
+}
+
+// Core Multi-Tenant Event Model
+model Event {
+  id               String            @id @default(auto()) @map("_id") @db.ObjectId
+  organizerId      String            @db.ObjectId
+  organizer        User              @relation("OrganizerEvents", fields: [organizerId], references: [id], onDelete: Cascade)
+  title            String
+  slug             String            @unique
+  shortDescription String?
+  description      String?
+  categoryId       String?           @db.ObjectId
+  category         Category?         @relation(fields: [categoryId], references: [id])
+  cityId           String?           @db.ObjectId
+  city             City?             @relation(fields: [cityId], references: [id])
+  venueId          String?           @db.ObjectId
+  venue            Venue?            @relation(fields: [venueId], references: [id])
+  eventType        EventType         @default(IN_PERSON)
+  status           EventStatus       @default(Draft)
+  visibility       EventVisibility   @default(PUBLIC)
+  language         String            @default("English")
+  currency         String            @default("INR")
+  timezone         String            @default("Asia/Kolkata")
+  price            Float             @default(0.0)
+  publishAt        DateTime?
+  unpublishAt      DateTime?
+  ageRestriction   String            @default("All Ages")
+  featured         Boolean           @default(false)
+  featuredUntil    DateTime?
+  termsAccepted    Boolean           @default(true)
+  isDeleted        Boolean           @default(false)
+  deletedAt        DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  // Relations
+  eventVenue     EventVenue?
+  schedules      EventSchedule[]
+  images         EventImage[]
+  faqs           EventFAQ[]
+  policy         EventPolicy?
+  seo            EventSEO?
+  sections       EventSection[]
+  ticketTypes    TicketType[]
+  dynamicPricing DynamicPricing[]
+  bookingRules   BookingRules?
+  waitlists      Waitlist[]
+  reservations   ReservationLock[]
+  bookings       Booking[]
+  payments       Payment[]
+  wishlists      Wishlist[]
+  reviews        Review[]
+  gates          Gate[]
+  devices        ScannerDevice[]
+  checkInLogs    CheckInLog[]
+  scannerAccounts ScannerAccount[]
+}
+
+// Access Control Gate Model
+model Gate {
+  id              String          @id @default(auto()) @map("_id") @db.ObjectId
+  eventId         String          @db.ObjectId
+  event           Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name            String
+  code            String
+  description     String?
+  allowedSections String[]
+  capacity        Int             @default(1000)
+  status          Boolean         @default(true)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  devices         ScannerDevice[]
+  checkInLogs     CheckInLog[]
+
+  @@unique([eventId, code])
+}
+
+// Registered Scanner Device Model
+model ScannerDevice {
+  id          String       @id @default(auto()) @map("_id") @db.ObjectId
+  eventId     String       @db.ObjectId
+  event       Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  gateId      String?      @db.ObjectId
+  gate        Gate?        @relation(fields: [gateId], references: [id], onDelete: SetNull)
+  deviceName  String
+  deviceId    String       @unique
+  platform    String       @default("ANDROID_SCANNER") // ANDROID_SCANNER, IPHONE_SCANNER, TABLET, WEB_SCANNER
+  apiKey      String       @unique
+  status      Boolean      @default(true)
+  lastSyncAt  DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  checkInLogs CheckInLog[]
+}
+
+// Event Organizer Created Scanner Staff Account Model
+model ScannerAccount {
+  id                 String       @id @default(auto()) @map("_id") @db.ObjectId
+  eventId            String       @db.ObjectId
+  event              Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  organizerId        String       @db.ObjectId
+  organizer          User         @relation("OrganizerScanners", fields: [organizerId], references: [id], onDelete: Cascade)
+  scannerName        String
+  scannerEmail       String
+  passwordHash       String
+  assignedSectionIds String[]     // Empty array = ALL sections allowed
+  assignedGateIds    String[]
+  isActive           Boolean      @default(true)
+  totalScansCount    Int          @default(0)
+  lastScanAt         DateTime?
+  checkInLogs        CheckInLog[]
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  @@unique([eventId, scannerEmail])
+  @@index([eventId, organizerId])
+}
+
+// Scan History & Audit Log Model
+model CheckInLog {
+  id               String          @id @default(auto()) @map("_id") @db.ObjectId
+  ticketId         String?         @db.ObjectId
+  bookingId        String?         @db.ObjectId
+  booking          Booking?        @relation(fields: [bookingId], references: [id])
+  eventId          String          @db.ObjectId
+  event            Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  sectionId        String?         @db.ObjectId
+  gateId           String?         @db.ObjectId
+  gate             Gate?           @relation(fields: [gateId], references: [id])
+  deviceId         String?         @db.ObjectId
+  device           ScannerDevice?  @relation(fields: [deviceId], references: [id])
+  scannerAccountId String?         @db.ObjectId
+  scannerAccount   ScannerAccount? @relation(fields: [scannerAccountId], references: [id])
+  scannedByUserId  String?         @db.ObjectId
+  scannedByUser    User?           @relation("ScannerStaffLogs", fields: [scannedByUserId], references: [id])
+  scanResult       ScanResult      @default(SUCCESS)
+  rejectionReason  String?
+  isOffline        Boolean         @default(false)
+  scannedAt        DateTime        @default(now())
+  createdAt        DateTime        @default(now())
+}
+
+// Event Section Model
+model EventSection {
+  id                String            @id @default(auto()) @map("_id") @db.ObjectId
+  eventId           String            @db.ObjectId
+  event             Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name              String
+  description       String?
+  color             String            @default("#3B82F6")
+  layoutType        String            @default("GRID")
+  displayOrder      Int               @default(0)
+  capacity          Int               @default(100)
+  availableCapacity Int               @default(100)
+  reservedCapacity  Int               @default(0)
+  soldCapacity      Int               @default(0)
+  isActive          Boolean           @default(true)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  ticketTypes       TicketType[]
+  inventories       TicketInventory[]
+  seatMaps          SeatMap[]
+  bookingItems      BookingItem[]
+
+  @@unique([eventId, name])
+}
+
+// Ticket Type Model
+model TicketType {
+  id                String            @id @default(auto()) @map("_id") @db.ObjectId
+  eventId           String            @db.ObjectId
+  event             Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  sectionId         String?           @db.ObjectId
+  section           EventSection?     @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  name              String
+  description       String?
+  price             Float             @default(0.0)
+  currency          String            @default("INR")
+  bookingFee        Float             @default(0.0)
+  platformFee       Float             @default(0.0)
+  serviceCharge     Float             @default(0.0)
+  gstPercentage     Float             @default(18.0)
+  quantityTotal     Int               @default(100)
+  quantityAvailable Int               @default(100)
+  saleStartDate     DateTime?
+  saleEndDate       DateTime?
+  minimumTickets    Int               @default(1)
+  maximumTickets    Int               @default(10)
+  isActive          Boolean           @default(true)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  tickets           Ticket[]
+  inventories       TicketInventory[]
+  dynamicPricing    DynamicPricing[]
+  waitlists         Waitlist[]
+  bookingItems      BookingItem[]
+}
+
+// Single Source of Truth Inventory Tracker Model
+model TicketInventory {
+  id                String        @id @default(auto()) @map("_id") @db.ObjectId
+  sectionId         String?       @db.ObjectId
+  section           EventSection? @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  ticketTypeId      String?       @db.ObjectId
+  ticketType        TicketType?   @relation(fields: [ticketTypeId], references: [id], onDelete: Cascade)
+  totalQuantity     Int           @default(100)
+  reservedQuantity  Int           @default(0)
+  soldQuantity      Int           @default(0)
+  blockedQuantity   Int           @default(0)
+  availableQuantity Int           @default(100)
+  updatedAt         DateTime      @updatedAt
+}
+
+// // Seat Status Lifecycle Enum
+enum SeatStatus {
+  AVAILABLE
+  HELD
+  SOLD
+  BLOCKED
+}
+
+// // 15-Minute Inventory Reservation Lock Model
+model ReservationLock {
+  id                String    @id @default(auto()) @map("_id") @db.ObjectId
+  reservationNumber String    @unique
+  userId            String    @db.ObjectId
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventId           String    @db.ObjectId
+  event             Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  scheduleId        String?   @db.ObjectId
+  sectionId         String?   @db.ObjectId
+  ticketTypeId      String?   @db.ObjectId
+  lockedQuantity    Int       @default(1)
+  expiresAt         DateTime
+  status            String    @default("LOCKED")
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  seats             SeatMap[] @relation("ReservationSeats")
+}
+
+// Comprehensive Booking Model
+model Booking {
+  id                String        @id @default(auto()) @map("_id") @db.ObjectId
+  bookingNumber     String        @unique
+  customerId        String        @db.ObjectId
+  customer          User          @relation("CustomerBookings", fields: [customerId], references: [id], onDelete: Cascade)
+  eventId           String        @db.ObjectId
+  event             Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  scheduleId        String?       @db.ObjectId
+  sectionId         String?       @db.ObjectId
+  ticketTypeId      String?       @db.ObjectId
+  quantity              Int           @default(1)
+  checkedInTicketsCount Int           @default(0)
+  currency              String        @default("INR")
+  subtotal          Float         @default(0.0)
+  discount          Float         @default(0.0)
+  couponDiscount    Float         @default(0.0)
+  platformFee       Float         @default(0.0)
+  bookingFee        Float         @default(0.0)
+  serviceCharge     Float         @default(0.0)
+  gstAmount         Float         @default(0.0)
+  totalAmount       Float         @default(0.0)
+  paymentStatus     PaymentStatus @default(Pending)
+  bookingStatus     BookingStatus @default(Reserved)
+  reservationStatus String        @default("ACTIVE")
+  bookingSource     String        @default("WEB")
+  expiresAt         DateTime?
+  notes             String?
+  ticketEmailSentAt DateTime?
+  ticketEmailError  String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  items       BookingItem[]
+  tickets     Ticket[]
+  seats       SeatMap[]     @relation("BookingSeats")
+  payments    Payment[]
+  refunds     Refund[]
+  invoices    Invoice[]
+  checkInLogs CheckInLog[]
+}
+
+// Multi-Ticket Booking Item Model
+model BookingItem {
+  id           String        @id @default(auto()) @map("_id") @db.ObjectId
+  bookingId    String        @db.ObjectId
+  booking      Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  ticketTypeId String        @db.ObjectId
+  ticketType   TicketType    @relation(fields: [ticketTypeId], references: [id], onDelete: Cascade)
+  sectionId    String?       @db.ObjectId
+  section      EventSection? @relation(fields: [sectionId], references: [id])
+  quantity     Int           @default(1)
+  unitPrice    Float         @default(0.0)
+  discount     Float         @default(0.0)
+  gst          Float         @default(0.0)
+  total        Float         @default(0.0)
+  createdAt    DateTime      @default(now())
+}
+
+// Comprehensive Payment Model
+model Payment {
+  id                   String         @id @default(auto()) @map("_id") @db.ObjectId
+  paymentNumber        String         @unique
+  bookingId            String         @db.ObjectId
+  booking              Booking        @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  eventId              String?        @db.ObjectId
+  event                Event?         @relation(fields: [eventId], references: [id])
+  userId               String         @db.ObjectId
+  user                 User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gateway              PaymentGateway @default(RAZORPAY)
+  gatewayOrderId       String?
+  gatewayPaymentId     String?
+  gatewayTransactionId String?
+  currency             String         @default("INR")
+  exchangeRate         Float          @default(1.0)
+  subtotal             Float          @default(0.0)
+  discount             Float          @default(0.0)
+  taxAmount            Float          @default(0.0)
+  platformFee          Float          @default(0.0)
+  bookingFee           Float          @default(0.0)
+  serviceCharge        Float          @default(0.0)
+  totalAmount          Float          @default(0.0)
+  paidAmount           Float          @default(0.0)
+  refundAmount         Float          @default(0.0)
+  paymentMethod        String         @default("CARD")
+  paymentStatus        PaymentStatus  @default(Pending)
+  paymentType          String         @default("SALE")
+  paymentDate          DateTime?
+  gatewayResponse      String?
+  metadata             String?
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+
+  refunds  Refund[]
+  invoices Invoice[]
+}
+
+// Refund Model
+model Refund {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  refundNumber String   @unique
+  paymentId    String   @db.ObjectId
+  payment      Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  bookingId    String   @db.ObjectId
+  booking      Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  userId       String   @db.ObjectId
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refundAmount Float
+  reason       String?
+  refundStatus String   @default("PROCESSED")
+  processedAt  DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// Automated Tax Invoice Model
+model Invoice {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  invoiceNumber String   @unique
+  bookingId     String   @db.ObjectId
+  booking       Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  paymentId     String?  @db.ObjectId
+  payment       Payment? @relation(fields: [paymentId], references: [id])
+  userId        String   @db.ObjectId
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subtotal      Float
+  gstAmount     Float
+  totalAmount   Float
+  pdfUrl        String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// Organizer Settlement Model
+model Settlement {
+  id                 String   @id @default(auto()) @map("_id") @db.ObjectId
+  settlementNumber   String   @unique
+  organizerId        String   @db.ObjectId
+  totalVolume        Float
+  platformCommission Float
+  taxesDeducted      Float
+  netPayout          Float
+  status             String   @default("PAID")
+  settledAt          DateTime @default(now())
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+// Webhook Idempotency & Signature Tracker Model
+model WebhookLog {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  gateway     String
+  eventId     String?
+  eventType   String
+  payload     String
+  processedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+}
+
+// Individual Ticket Model
+model Ticket {
+  id           String       @id @default(auto()) @map("_id") @db.ObjectId
+  ticketCode   String       @unique
+  bookingId    String       @db.ObjectId
+  booking      Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  ticketTypeId String       @db.ObjectId
+  ticketType   TicketType   @relation(fields: [ticketTypeId], references: [id], onDelete: Cascade)
+  seatId       String?      @db.ObjectId
+  qrToken      String?
+  status       TicketStatus @default(ISSUED)
+  checkedInAt  DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  seats        SeatMap[]    @relation("TicketSeats")
+}
+
+// Audit Log Model
+model AuditLog {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String?  @db.ObjectId
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String
+  entity    String
+  entityId  String
+  oldData   String?
+  newData   String?
+  ipAddress String?
+  createdAt DateTime @default(now())
+}
+
+// Dynamic Pricing Engine Model
+model DynamicPricing {
+  id           String      @id @default(auto()) @map("_id") @db.ObjectId
+  eventId      String      @db.ObjectId
+  event        Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  ticketTypeId String?     @db.ObjectId
+  ticketType   TicketType? @relation(fields: [ticketTypeId], references: [id], onDelete: Cascade)
+  pricingType  PricingType @default(REGULAR)
+  startDate    DateTime
+  endDate      DateTime
+  price        Float
+  priority     Int         @default(1)
+  status       Boolean     @default(true)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+}
+
+// Booking Rules Engine Model
+model BookingRules {
+  id                String    @id @default(auto()) @map("_id") @db.ObjectId
+  eventId           String    @unique @db.ObjectId
+  event             Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  minimumTickets    Int       @default(1)
+  maximumTickets    Int       @default(10)
+  maxTicketsPerUser Int       @default(10)
+  bookingOpens      DateTime?
+  bookingCloses     DateTime?
+  bookingCutoff     Int       @default(60)
+  allowGuestBooking Boolean   @default(false)
+  requireLogin      Boolean   @default(true)
+  requireOTP        Boolean   @default(false)
+  requireIdProof    Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+// Seat Mapping Model
+model SeatMap {
+  id                String           @id @default(auto()) @map("_id") @db.ObjectId
+  sectionId         String           @db.ObjectId
+  section           EventSection     @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  row               String
+  column            Int
+  seatNumber        String
+  seatType          String           @default("REGULAR")
+  isBooked          Boolean          @default(false)
+  isBlocked         Boolean          @default(false)
+  status            SeatStatus       @default(AVAILABLE)
+  ticketId          String?          @db.ObjectId
+  ticket            Ticket?          @relation("TicketSeats", fields: [ticketId], references: [id], onDelete: SetNull)
+  bookingId         String?          @db.ObjectId
+  booking           Booking?         @relation("BookingSeats", fields: [bookingId], references: [id], onDelete: SetNull)
+  reservationLockId String?          @db.ObjectId
+  reservationLock   ReservationLock? @relation("ReservationSeats", fields: [reservationLockId], references: [id], onDelete: SetNull)
+  heldUntil         DateTime?
+  soldAt            DateTime?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@unique([sectionId, row, column])
+}
+
+// Waitlist Engine Model
+model Waitlist {
+  id            String         @id @default(auto()) @map("_id") @db.ObjectId
+  eventId       String         @db.ObjectId
+  event         Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  ticketTypeId  String?        @db.ObjectId
+  ticketType    TicketType?    @relation(fields: [ticketTypeId], references: [id], onDelete: Cascade)
+  userId        String?        @db.ObjectId
+  user          User?          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customerEmail String
+  status        WaitlistStatus @default(WAITING)
+  notifiedAt    DateTime?
+  expiresAt     DateTime?
+  createdAt     DateTime       @default(now())
+}
+
+// Coupon & Promo Code Model
+model Coupon {
+  id              String     @id @default(auto()) @map("_id") @db.ObjectId
+  code            String     @unique
+  type            CouponType @default(PERCENTAGE)
+  value           Float
+  minimumAmount   Float      @default(0.0)
+  maximumDiscount Float?
+  usageLimit      Int        @default(100)
+  usageCount      Int        @default(0)
+  validFrom       DateTime   @default(now())
+  validUntil      DateTime
+  status          Boolean    @default(true)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+}
+
+// Event Detailed Venue Location Model
+model EventVenue {
+  id                   String   @id @default(auto()) @map("_id") @db.ObjectId
+  eventId              String   @unique @db.ObjectId
+  event                Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  venueName            String
+  address              String
+  city                 String
+  state                String?
+  country              String   @default("India")
+  postalCode           String?
+  latitude             Float?
+  longitude            Float?
+  capacity             Int      @default(100)
+  parkingAvailable     Boolean  @default(false)
+  wheelchairAccessible Boolean  @default(true)
+  foodAllowed          Boolean  @default(false)
+  smokingAllowed       Boolean  @default(false)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+// Event Schedule Model
+model EventSchedule {
+  id               String    @id @default(auto()) @map("_id") @db.ObjectId
+  eventId          String    @db.ObjectId
+  event            Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  startDate        DateTime
+  endDate          DateTime
+  startTime        String
+  endTime          String
+  gateOpenTime     String?
+  bookingCloseTime DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+// Event Image & Media Model
+model EventImage {
+  id           String         @id @default(auto()) @map("_id") @db.ObjectId
+  eventId      String         @db.ObjectId
+  event        Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  type         EventImageType @default(BANNER)
+  imageUrl     String
+  displayOrder Int            @default(0)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+}
+
+// Event FAQ Model
+model EventFAQ {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  eventId      String   @db.ObjectId
+  event        Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  question     String
+  answer       String
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// Event Policy Model
+model EventPolicy {
+  id                 String   @id @default(auto()) @map("_id") @db.ObjectId
+  eventId            String   @unique @db.ObjectId
+  event              Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  refundPolicy       String?
+  cancellationPolicy String?
+  entryPolicy        String?
+  cameraPolicy       String?
+  foodPolicy         String?
+  childPolicy        String?
+  parkingPolicy      String?
+  idProofRequired    Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+// Event SEO Model
+model EventSEO {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  eventId         String   @unique @db.ObjectId
+  event           Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  metaTitle       String?
+  metaDescription String?
+  keywords        String[]
+  canonicalUrl    String?
+  ogImage         String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// Wishlist Model
+model Wishlist {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventId   String   @db.ObjectId
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, eventId])
+}
+
+// Event Review & Rating Model
+model Review {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventId   String   @db.ObjectId
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  rating    Int      @default(5)
+  comment   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Customer Notification Model
+model Notification {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+// Admin Global Tax & GST Setting Model
+model TaxSetting {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  gstRate     Float    @default(18.0) // 18% GST
+  cgstRate    Float    @default(9.0)
+  sgstRate    Float    @default(9.0)
+  igstRate    Float    @default(18.0)
+  platformFee Float    @default(20.0) // Flat ₹20 per ticket
+  serviceFee  Float    @default(0.0)
+  gstNumber   String?  // Admin Business GSTIN
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
