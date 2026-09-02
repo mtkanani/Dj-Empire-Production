@@ -1,4 +1,5 @@
 import http from 'http';
+import dns from 'dns/promises';
 import app from './src/app.js';
 import { env } from './src/config/env.js';
 import { logger } from './src/config/logger.js';
@@ -9,172 +10,129 @@ import { InventoryService } from './src/modules/ticketing/services/inventory.ser
 let server;
 let expiryWorkerInterval;
 
-// ============================================================
-// UNCAUGHT EXCEPTION HANDLER
-// ============================================================
-
+// Handle Uncaught Exceptions
 process.on('uncaughtException', (err) => {
-  logger.error('UNCAUGHT EXCEPTION! Shutting down...', {
-    error: err?.message,
-    stack: err?.stack,
+  logger.error('UNCAUGHT EXCEPTION! 💥 Shutting down...', {
+    error: err.message,
+    stack: err.stack,
   });
 
   process.exit(1);
 });
 
-// ============================================================
-// START SERVER
-// ============================================================
-
+// Establish Database Connection and Start HTTP & Real-Time Socket Server
 const startServer = async () => {
   try {
-    logger.info(`Starting server in [${env.NODE_ENV}] mode`);
-    logger.info(`Configured port: ${env.PORT}`);
+    // Test Prisma Database Connection
+    console.log('=== STARTUP TEST: server.js loaded ===');
+    console.log('=== STARTUP TEST: PORT =', env.PORT);
+    console.log('=== STARTUP TEST: NODE_ENV =', env.NODE_ENV);
 
-    // ----------------------------------------------------------
-    // CREATE HTTP SERVER
-    // ----------------------------------------------------------
+    console.log('=== NODE DNS TEST START ===');
 
+try {
+  const dnsResult = await dns.resolveSrv(
+  '_mongodb._tcp.cluster0.88ywdkx.mongodb.net'
+);
+
+  console.log('=== NODE DNS TEST SUCCESS ===');
+  console.log(dnsResult);
+} catch (dnsError) {
+  console.error('=== NODE DNS TEST FAILED ===');
+  console.error('Message:', dnsError?.message);
+  console.error('Code:', dnsError?.code);
+  console.error('Full error:', dnsError);
+}
+
+console.log('=== STARTUP TEST: attempting Prisma connection ===');
+
+await prisma.$connect();
+
+    console.log('=== STARTUP TEST: Prisma connected ===');
+
+    logger.info('✅ Database connected successfully via Prisma');
+
+    // Create HTTP server wrapping Express
     const httpServer = http.createServer(app);
 
-    // ----------------------------------------------------------
-    // INITIALIZE SOCKET.IO
-    // ----------------------------------------------------------
-
+    // Initialize Socket.IO Real-Time Engine
     initSocket(httpServer);
 
-    logger.info('Socket.IO Real-Time Engine initialized');
+    logger.info('⚡ Socket.IO Real-Time Engine initialized');
 
-    // ----------------------------------------------------------
-    // START HTTP SERVER IMMEDIATELY
-    //
-    // IMPORTANT:
-    // Hostinger must receive the listen() call quickly.
-    // Do not wait for MongoDB before starting the server.
-    // ----------------------------------------------------------
+    // Start HTTP & Socket Server
+    console.log('=== STARTUP TEST: starting HTTP server ===');
 
-    server = httpServer.listen(
-      env.PORT,
-      '0.0.0.0',
-      () => {
-        logger.info(
-          `Server running in [${env.NODE_ENV}] mode on port ${env.PORT}`
-        );
+    server = httpServer.listen(env.PORT, '0.0.0.0', () => {
+      logger.info(
+        `🚀 Server running in [${env.NODE_ENV}] mode on port ${env.PORT}`
+      );
 
-        logger.info('Swagger OpenAPI Docs: /api-docs');
+      logger.info('📚 Swagger OpenAPI Docs: /api-docs');
 
-        logger.info(
-          `Health Endpoint: /api/${env.API_VERSION}/health`
-        );
-      }
-    );
-
-    // ----------------------------------------------------------
-    // HTTP SERVER ERROR HANDLER
-    // ----------------------------------------------------------
-
-    server.on('error', (err) => {
-      if (err.code === 'EADDRINUSE') {
-        logger.error(
-          `Port ${env.PORT} is already in use by another process.`
-        );
-      } else {
-        logger.error('HTTP Server Error:', {
-          message: err?.message,
-          stack: err?.stack,
-        });
-      }
-
-      process.exit(1);
+      logger.info(
+        `⚡ Health Endpoint: /api/${env.API_VERSION}/health`
+      );
     });
 
-    // ==========================================================
-    // PRISMA DATABASE CONNECTION
-    // ==========================================================
-
-    try {
-      logger.info(
-        'Connecting to database via Prisma...'
-      );
-
-      await prisma.$connect();
-
-      logger.info(
-        'Database connected successfully via Prisma'
-      );
-
-      // --------------------------------------------------------
-      // START SEAT EXPIRATION WORKER
-      // --------------------------------------------------------
-
-      expiryWorkerInterval = setInterval(async () => {
-        try {
-          await InventoryService.releaseExpiredSeats();
-        } catch (err) {
-          logger.error(
-            `Error in seat hold release worker: ${err?.message}`
-          );
-        }
-      }, 30000);
-
-      logger.info(
-        'Seat expiration worker started'
-      );
-    } catch (dbError) {
-      logger.error(
-        'Database connection failed via Prisma:',
-        {
-          message: dbError?.message,
-          name: dbError?.name,
-          code: dbError?.code,
-          stack: dbError?.stack,
-        }
-      );
-
-      // IMPORTANT:
-      // Do NOT terminate the HTTP server.
-      // This keeps the application alive even if
-      // MongoDB/Prisma temporarily has a problem.
-    }
-  } catch (error) {
-    logger.error(
-      'Failed to start server:',
-      {
-        message: error?.message,
-        name: error?.name,
-        code: error?.code,
-        stack: error?.stack,
+    // Start background worker for automatic seat hold expiration
+    expiryWorkerInterval = setInterval(async () => {
+      try {
+        await InventoryService.releaseExpiredSeats();
+      } catch (err) {
+        logger.error(
+          `Error in seat hold release worker: ${err.message}`
+        );
       }
-    );
+    }, 30000);
+
+    // Handle HTTP Server Errors
+    server.on('error', async (err) => {
+      if (err.code === 'EADDRINUSE') {
+        logger.error(
+          `❌ Port ${env.PORT} is already in use by another process.`
+        );
+      } else {
+        logger.error('❌ HTTP Server Error:', err);
+      }
+
+      await prisma.$disconnect();
+      process.exit(1);
+    });
+  } catch (error) {
+    console.error('========================================');
+    console.error('❌ PRISMA / SERVER STARTUP ERROR');
+    console.error('Message:', error?.message);
+    console.error('Name:', error?.name);
+    console.error('Code:', error?.code);
+    console.error('Full error:', error);
+    console.error('========================================');
+
+    logger.error('Failed to start server:', {
+      message: error?.message,
+      name: error?.name,
+      code: error?.code,
+      stack: error?.stack,
+    });
+
+    await prisma.$disconnect().catch(() => {});
 
     process.exit(1);
   }
 };
 
-// ============================================================
-// START APPLICATION
-// ============================================================
-
 startServer();
 
-// ============================================================
-// UNHANDLED PROMISE REJECTION
-// ============================================================
-
+// Handle Unhandled Promise Rejections
 process.on('unhandledRejection', (err) => {
-  logger.error(
-    'UNHANDLED REJECTION! Shutting down...',
-    {
-      error: err?.message,
-      stack: err?.stack,
-    }
-  );
+  logger.error('UNHANDLED REJECTION! 💥 Shutting down...', {
+    error: err?.message,
+    stack: err?.stack,
+  });
 
   if (server) {
     server.close(async () => {
-      if (expiryWorkerInterval) {
-        clearInterval(expiryWorkerInterval);
-      }
+      clearInterval(expiryWorkerInterval);
 
       await prisma.$disconnect().catch(() => {});
 
@@ -185,28 +143,19 @@ process.on('unhandledRejection', (err) => {
   }
 });
 
-// ============================================================
-// GRACEFUL SHUTDOWN
-// ============================================================
-
+// Handle Graceful Termination Signals
 const gracefulShutdown = (signal) => {
-  logger.info(
-    `Received ${signal}. Shutting down gracefully...`
-  );
+  logger.info(`Received ${signal}. Shutting down gracefully...`);
 
-  // Stop seat expiration worker
   if (expiryWorkerInterval) {
     clearInterval(expiryWorkerInterval);
   }
 
-  // Close HTTP server
   if (server) {
     server.close(async () => {
       await prisma.$disconnect().catch(() => {});
 
-      logger.info(
-        'HTTP server and Database connection closed.'
-      );
+      logger.info('HTTP server and Database connection closed.');
 
       process.exit(0);
     });
@@ -220,14 +169,5 @@ const gracefulShutdown = (signal) => {
   }
 };
 
-// ============================================================
-// SHUTDOWN SIGNALS
-// ============================================================
-
-process.on('SIGTERM', () => {
-  gracefulShutdown('SIGTERM');
-});
-
-process.on('SIGINT', () => {
-  gracefulShutdown('SIGINT');
-});
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
