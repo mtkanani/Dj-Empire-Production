@@ -1,5 +1,6 @@
 import http from 'http';
 import app from './src/app.js';
+import net from 'net';
 import { env } from './src/config/env.js';
 import { logger } from './src/config/logger.js';
 import { prisma } from './src/config/prisma.js';
@@ -66,7 +67,8 @@ const startServer = async () => {
     // Connect Prisma after HTTP server has started
     try {
       logger.info('Connecting to database via Prisma...');
-      console.log('=== MONGODB TCP TEST START ===');
+     console.log('=== MONGODB TCP TEST START ===');
+
 
 const mongoHosts = [
   'ac-tkhomxr-shard-00-00.88ywdkx.mongodb.net',
@@ -74,35 +76,37 @@ const mongoHosts = [
   'ac-tkhomxr-shard-00-02.88ywdkx.mongodb.net',
 ];
 
-for (const host of mongoHosts) {
-  await new Promise((resolve) => {
-    const socket = new net.Socket();
+await Promise.all(
+  mongoHosts.map(
+    (host) =>
+      new Promise((resolve) => {
+        const socket = new net.Socket();
 
-    socket.setTimeout(5000);
+        socket.setTimeout(1000);
 
-    socket.on('connect', () => {
-      console.log(`=== TCP SUCCESS: ${host}:27017 ===`);
-      socket.destroy();
-      resolve();
-    });
+        socket.on('connect', () => {
+          console.log(`=== TCP SUCCESS: ${host}:27017 ===`);
+          socket.destroy();
+          resolve();
+        });
 
-    socket.on('timeout', () => {
-      console.error(`=== TCP TIMEOUT: ${host}:27017 ===`);
-      socket.destroy();
-      resolve();
-    });
+        socket.on('timeout', () => {
+          console.error(`=== TCP TIMEOUT: ${host}:27017 ===`);
+          socket.destroy();
+          resolve();
+        });
 
-    socket.on('error', (error) => {
-      console.error(
-        `=== TCP FAILED: ${host}:27017 ===`,
-        error?.message
-      );
-      resolve();
-    });
+        socket.on('error', (error) => {
+          console.error(
+            `=== TCP FAILED: ${host}:27017 === ${error?.message}`
+          );
+          resolve();
+        });
 
-    socket.connect(27017, host);
-  });
-}
+        socket.connect(27017, host);
+      })
+  )
+);
 
 console.log('=== MONGODB TCP TEST END ===');
 
