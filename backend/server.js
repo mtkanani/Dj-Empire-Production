@@ -1,6 +1,5 @@
 import http from 'http';
 import app from './src/app.js';
-import mongoose from 'mongoose';
 import { env } from './src/config/env.js';
 import { logger } from './src/config/logger.js';
 import { prisma } from './src/config/prisma.js';
@@ -85,103 +84,7 @@ const startServer = async () => {
       process.exit(1);
     });
 
-    // ==========================================================
-    // TEMPORARY MONGODB TEST USING MONGOOSE
-    //
-    // This is ONLY for diagnosing the current Prisma
-    // ReplicaSetNoPrimary problem.
-    //
-    // DO NOT put the MongoDB password in this file.
-    // DATABASE_URL is read from Hostinger environment variables.
-    // ==========================================================
-
-    try {
-      logger.info('==========================================');
-      logger.info('=== MONGOOSE MONGODB TEST START ===');
-      logger.info('==========================================');
-
-      if (!env.DATABASE_URL) {
-        throw new Error(
-          'DATABASE_URL is missing from environment variables'
-        );
-      }
-
-      logger.info(
-        'Attempting MongoDB connection using Mongoose...'
-      );
-
-      await mongoose.connect(env.DATABASE_URL, {
-        serverSelectionTimeoutMS: 10000,
-        connectTimeoutMS: 5000,
-      });
-
-      logger.info(
-        '=== MONGOOSE CONNECTED SUCCESSFULLY ==='
-      );
-
-      // --------------------------------------------------------
-      // Ask MongoDB which node is PRIMARY.
-      // --------------------------------------------------------
-
-      const helloResult =
-        await mongoose.connection.db.admin().command({
-          hello: 1,
-        });
-
-      logger.info('=== MONGODB HELLO RESULT ===');
-
-      logger.info({
-        isWritablePrimary: helloResult?.isWritablePrimary,
-        secondary: helloResult?.secondary,
-        setName: helloResult?.setName,
-        primary: helloResult?.primary,
-        hosts: helloResult?.hosts,
-      });
-
-      // --------------------------------------------------------
-      // Easy-to-read PRIMARY status
-      // --------------------------------------------------------
-
-      if (helloResult?.isWritablePrimary === true) {
-        logger.info(
-          '=== MONGODB PRIMARY FOUND ==='
-        );
-
-        logger.info(
-          `MongoDB Primary: ${helloResult.primary || 'current node'}`
-        );
-      } else if (helloResult?.secondary === true) {
-        logger.warn(
-          '=== CONNECTED TO MONGODB SECONDARY ==='
-        );
-
-        logger.warn(
-          'MongoDB driver connected, but this node is not PRIMARY.'
-        );
-
-        logger.warn(
-          `Reported Primary: ${helloResult.primary || 'unknown'}`
-        );
-      } else {
-        logger.warn(
-          '=== MONGODB PRIMARY STATUS UNKNOWN ==='
-        );
-      }
-
-      logger.info(
-        '=== MONGOOSE MONGODB TEST SUCCESS ==='
-      );
-
-      // --------------------------------------------------------
-      // Close temporary Mongoose connection.
-      // Prisma remains responsible for the application DB.
-      // --------------------------------------------------------
-
-      await mongoose.disconnect();
-
-      logger.info(
-        '=== MONGOOSE TEST CONNECTION CLOSED ==='
-      );
+    
     } catch (mongoError) {
       logger.error(
         '=========================================='
@@ -203,7 +106,7 @@ const startServer = async () => {
         stack: mongoError?.stack,
       });
 
-      await mongoose.disconnect().catch(() => {});
+      
 
       logger.error(
         'Mongoose MongoDB test failed, but HTTP server will remain alive.'
