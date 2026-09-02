@@ -1,22 +1,30 @@
 import { prisma } from '../config/prisma.js';
 
-/**
- * Health Repository for database health checks
- */
 export class HealthRepository {
-  /**
-   * Check MongoDB connection using Prisma
-   * @returns {Promise<boolean>}
-   */
   static async checkDatabaseConnection() {
     try {
-      await prisma.$runCommandRaw({
-        ping: 1,
+      // Give MongoDB a maximum of 3 seconds
+      // to respond to the health check.
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => {
+          reject(new Error('Database health check timeout'));
+        }, 3000);
       });
+
+      await Promise.race([
+        prisma.$runCommandRaw({
+          ping: 1,
+        }),
+        timeoutPromise,
+      ]);
 
       return true;
     } catch (error) {
-      console.error('Health check database error:', error?.message);
+      console.error(
+        'Health check database error:',
+        error?.message
+      );
+
       return false;
     }
   }
