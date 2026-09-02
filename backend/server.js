@@ -6,6 +6,7 @@ import { logger } from './src/config/logger.js';
 import { prisma } from './src/config/prisma.js';
 import { initSocket } from './src/modules/realtime/socket.js';
 import { InventoryService } from './src/modules/ticketing/services/inventory.service.js';
+import { EmailService } from './src/services/email.service.js';
 
 let server;
 let expiryWorkerInterval;
@@ -59,6 +60,8 @@ await prisma.$connect();
     initSocket(httpServer);
 
     logger.info('⚡ Socket.IO Real-Time Engine initialized');
+
+    await EmailService.verifySmtp();
 
     // Start HTTP & Socket Server
     console.log('=== STARTUP TEST: starting HTTP server ===');

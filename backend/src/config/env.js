@@ -27,8 +27,11 @@ const envSchema = z.object({
   // SMTP Configuration
   SMTP_HOST: z.string().default('smtp.gmail.com'),
   SMTP_PORT: z.string().default('587').transform((val) => parseInt(val, 10)),
-  SMTP_USER: z.string().default('info.djempire@gmail.com'),
-  SMTP_PASS: z.string().default('ijxk cnjw iijb fwte'),
+  SMTP_USER: z.string().trim().min(1).default('info.djempire@gmail.com'),
+  SMTP_PASS: z
+    .string()
+    .default('ijxk cnjw iijb fwte')
+    .transform((val) => String(val).replace(/^["']|["']$/g, '').replace(/\s+/g, '')),
   EMAIL_FROM: z.string().default('Event Booking Platform <info.djempire@gmail.com>'),
 });
 

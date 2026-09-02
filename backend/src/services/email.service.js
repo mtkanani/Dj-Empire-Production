@@ -1,30 +1,79 @@
 import nodemailer from 'nodemailer';
 import { env } from '../config/env.js';
 import { logger } from '../config/logger.js';
+import { AppError } from '../utils/AppError.js';
+import { HTTP_STATUS } from '../constants/httpStatusCodes.js';
 
-// Initialize Nodemailer SMTP Transporter
-const transporter = nodemailer.createTransport({
-  host: env.SMTP_HOST,
-  port: env.SMTP_PORT,
-  secure: env.SMTP_PORT === 465,
-  connectionTimeout: 10000,
-  greetingTimeout: 10000,
-  socketTimeout: 20000,
-  auth: {
-    user: env.SMTP_USER,
-    pass: env.SMTP_PASS,
-  },
-});
+const isGmail = /gmail\.com$/i.test(env.SMTP_HOST);
+
+const transporter = nodemailer.createTransport(
+  isGmail
+    ? {
+        service: 'gmail',
+        auth: {
+          user: env.SMTP_USER,
+          pass: env.SMTP_PASS,
+        },
+        connectionTimeout: 25000,
+        greetingTimeout: 25000,
+        socketTimeout: 30000,
+      }
+    : {
+        host: env.SMTP_HOST,
+        port: env.SMTP_PORT,
+        secure: env.SMTP_PORT === 465,
+        requireTLS: env.SMTP_PORT === 587,
+        auth: {
+          user: env.SMTP_USER,
+          pass: env.SMTP_PASS,
+        },
+        connectionTimeout: 25000,
+        greetingTimeout: 25000,
+        socketTimeout: 30000,
+      }
+);
+
+const mailFrom = env.EMAIL_FROM.includes(env.SMTP_USER)
+  ? env.EMAIL_FROM
+  : `"${env.APP_NAME}" <${env.SMTP_USER}>`;
+
+function smtpUserMessage(error) {
+  const msg = String(error?.message || 'Unknown mail error');
+  if (/invalid login|535|534|username and password not accepted|badcredentials/i.test(msg)) {
+    return 'Could not send email. Gmail rejected the login. On Render, set SMTP_USER to your Gmail and SMTP_PASS to a Google App Password (not your normal password).';
+  }
+  if (/timeout|etimedout|esocket|econnrefused|enotfound/i.test(msg)) {
+    return 'Could not reach the mail server. If this is Render + Gmail, use Hostinger mailbox SMTP (smtp.hostinger.com, port 465) instead.';
+  }
+  return `Could not send email: ${msg}`;
+}
+
+function logDevOtp(label, toEmail, otpCode) {
+  if (env.NODE_ENV !== 'development') return;
+  console.log('\n==================================================');
+  console.log(`🔑 [${label}] ${toEmail}`);
+  console.log(`👉 6-DIGIT VERIFICATION CODE: ${otpCode}`);
+  console.log('==================================================\n');
+}
 
 /**
  * Reusable Email Service using Nodemailer
  */
 export class EmailService {
+  static async verifySmtp() {
+    try {
+      await transporter.verify();
+      logger.info(`📧 SMTP ready (${env.SMTP_HOST} as ${env.SMTP_USER})`);
+    } catch (error) {
+      logger.error(`📧 SMTP verify failed: ${error.message}`);
+      logger.error(
+        'OTP emails will fail until SMTP_USER / SMTP_PASS (App Password) are set on this server.'
+      );
+    }
+  }
+
   /**
    * Send 6-Digit OTP Email for Verification or Password Reset
-   * @param {string} toEmail
-   * @param {string} otpCode
-   * @param {string} [purpose='Email Verification']
    */
   static async sendOtpEmail(toEmail, otpCode, purpose = 'Email Verification') {
     const subject = `${env.APP_NAME} - Your ${purpose} OTP Code`;
@@ -44,22 +93,17 @@ export class EmailService {
 
     try {
       const info = await transporter.sendMail({
-        from: env.EMAIL_FROM,
+        from: mailFrom,
         to: toEmail,
         subject,
         html,
       });
-    logger.info(`📧 Email sent to ${toEmail}: ${info.messageId}`);
-    return info;
+      logger.info(`📧 Email sent to ${toEmail}: ${info.messageId}`);
+      return info;
     } catch (error) {
       logger.error(`❌ Email delivery failed to ${toEmail}: ${error.message}`);
-      if (env.NODE_ENV === 'development') {
-        console.log('\n==================================================');
-        console.log(`🔑 [DEV OTP CODE] Target Email: ${toEmail}`);
-        console.log(`👉 6-DIGIT VERIFICATION CODE: ${otpCode}`);
-        console.log('==================================================\n');
-      }
-      return { messageId: 'dev-mode-simulated' };
+      logDevOtp('DEV OTP CODE', toEmail, otpCode);
+      throw new AppError(smtpUserMessage(error), HTTP_STATUS.SERVICE_UNAVAILABLE);
     }
   }
 
@@ -79,7 +123,7 @@ export class EmailService {
 
     try {
       const info = await transporter.sendMail({
-        from: env.EMAIL_FROM,
+        from: mailFrom,
         to: toEmail,
         subject,
         html,
@@ -88,21 +132,11 @@ export class EmailService {
       return info;
     } catch (error) {
       logger.error(`❌ Password reset email delivery failed: ${error.message}`);
-      if (env.NODE_ENV === 'development') {
-        console.log('\n==================================================');
-        console.log(`🔑 [DEV PASSWORD RESET OTP] sent for account email`);
-        console.log(`👉 6-DIGIT VERIFICATION CODE: ${otpCode}`);
-        console.log('==================================================\n');
-      }
-      return { messageId: 'dev-mode-simulated' };
+      logDevOtp('DEV PASSWORD RESET OTP', toEmail, otpCode);
+      throw new AppError(smtpUserMessage(error), HTTP_STATUS.SERVICE_UNAVAILABLE);
     }
   }
 
-  /**
-   * Send Event Organizer Approval Notification Email
-   * @param {string} toEmail
-   * @param {string} companyName
-   */
   static async sendOrganizerApprovalEmail(toEmail, companyName) {
     const subject = `${env.APP_NAME} - Account Approved! 🎉`;
     const html = `
@@ -118,7 +152,7 @@ export class EmailService {
 
     try {
       await transporter.sendMail({
-        from: env.EMAIL_FROM,
+        from: mailFrom,
         to: toEmail,
         subject,
         html,
@@ -128,12 +162,9 @@ export class EmailService {
     }
   }
 
-  /**
-   * Send booking confirmation with one unique QR image per issued ticket.
-   */
   static async sendBookingTicketEmail({ to, subject, html, attachments = [] }) {
     const info = await transporter.sendMail({
-      from: env.EMAIL_FROM,
+      from: mailFrom,
       to,
       subject,
       html,

@@ -11,7 +11,6 @@ import { AppError } from '../utils/AppError.js';
 import { HTTP_STATUS } from '../constants/httpStatusCodes.js';
 import { formatStoredPhone } from '../utils/phone.util.js';
 import { duplicateKeyMessage, isPrismaUniqueError, normalizeLoginIdentifier } from '../utils/authIdentifier.util.js';
-import { logger } from '../config/logger.js';
 import crypto from 'crypto';
 
 /**
@@ -54,9 +53,7 @@ export class AuthService {
       throw error;
     }
 
-    await this.generateAndSendOtp(user.id, user.email, OtpPurpose.EMAIL_VERIFICATION, {
-      waitForEmail: false,
-    });
+    await this.generateAndSendOtp(user.id, user.email, OtpPurpose.EMAIL_VERIFICATION);
 
     return {
       userId: user.id,
@@ -113,9 +110,7 @@ export class AuthService {
       approvalStatus: ApprovalStatus.PENDING,
     });
 
-    await this.generateAndSendOtp(user.id, user.email, OtpPurpose.EMAIL_VERIFICATION, {
-      waitForEmail: false,
-    });
+    await this.generateAndSendOtp(user.id, user.email, OtpPurpose.EMAIL_VERIFICATION);
 
     return {
       userId: user.id,
@@ -162,27 +157,15 @@ export class AuthService {
       });
     }
 
-    this.dispatchOtpEmail(user.email, plainOtp, purpose);
+    await EmailService.sendOtpEmail(user.email, plainOtp, purpose);
 
     return { message: 'OTP sent successfully to your email.' };
   }
 
-  static dispatchOtpEmail(email, plainOtp, purpose) {
-    EmailService.sendOtpEmail(email, plainOtp, purpose).catch((error) => {
-      logger.error(`Background OTP email failed for ${email}: ${error.message}`);
-    });
-  }
-
-  static dispatchPasswordResetEmail(email, plainOtp) {
-    EmailService.sendPasswordResetOtpEmail(email, plainOtp).catch((error) => {
-      logger.error(`Background password-reset email failed for ${email}: ${error.message}`);
-    });
-  }
-
   /**
-   * Persist OTP immediately; email can wait until after the HTTP response.
+   * Persist OTP then send it (errors surface to the client).
    */
-  static async generateAndSendOtp(userId, email, purpose, { waitForEmail = true } = {}) {
+  static async generateAndSendOtp(userId, email, purpose) {
     await OtpRepository.invalidatePreviousOtps(userId, purpose);
 
     const plainOtp = OtpUtil.generateOtp();
@@ -197,12 +180,7 @@ export class AuthService {
       resendCount: 1,
     });
 
-    if (waitForEmail) {
-      await EmailService.sendOtpEmail(email, plainOtp, purpose);
-      return;
-    }
-
-    this.dispatchOtpEmail(email, plainOtp, purpose);
+    await EmailService.sendOtpEmail(email, plainOtp, purpose);
   }
 
   /**
@@ -455,7 +433,7 @@ export class AuthService {
       lastSentAt: new Date(),
     });
 
-    this.dispatchPasswordResetEmail(user.email, plainOtp);
+    await EmailService.sendPasswordResetOtpEmail(user.email, plainOtp);
     return requestId;
   }
 
@@ -522,7 +500,7 @@ export class AuthService {
     const hashedOtp = await HashUtil.hashOtp(plainOtp);
     const expiresAt = OtpUtil.getOtpExpiration();
     await OtpRepository.updateResendOtp(otpRecord.id, hashedOtp, expiresAt);
-    this.dispatchPasswordResetEmail(user.email, plainOtp);
+    await EmailService.sendPasswordResetOtpEmail(user.email, plainOtp);
 
     return generic;
   }
