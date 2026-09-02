@@ -1,5 +1,6 @@
 import http from 'http';
 import app from './src/app.js';
+import mongoose from 'mongoose';
 import { env } from './src/config/env.js';
 import { logger } from './src/config/logger.js';
 import { prisma } from './src/config/prisma.js';
@@ -9,7 +10,10 @@ import { InventoryService } from './src/modules/ticketing/services/inventory.ser
 let server;
 let expiryWorkerInterval;
 
-// Handle uncaught exceptions
+// ============================================================
+// UNCAUGHT EXCEPTION HANDLER
+// ============================================================
+
 process.on('uncaughtException', (err) => {
   logger.error('UNCAUGHT EXCEPTION! Shutting down...', {
     error: err?.message,
@@ -19,21 +23,37 @@ process.on('uncaughtException', (err) => {
   process.exit(1);
 });
 
+// ============================================================
+// START SERVER
+// ============================================================
+
 const startServer = async () => {
   try {
     logger.info(`Starting server in [${env.NODE_ENV}] mode`);
     logger.info(`Configured port: ${env.PORT}`);
 
-    // Create HTTP server
+    // ----------------------------------------------------------
+    // CREATE HTTP SERVER
+    // ----------------------------------------------------------
+
     const httpServer = http.createServer(app);
 
-    // Initialize Socket.IO
+    // ----------------------------------------------------------
+    // INITIALIZE SOCKET.IO
+    // ----------------------------------------------------------
+
     initSocket(httpServer);
 
     logger.info('Socket.IO Real-Time Engine initialized');
 
+    // ----------------------------------------------------------
+    // START HTTP SERVER IMMEDIATELY
+    //
     // IMPORTANT:
-    // Start HTTP server BEFORE waiting for Prisma.
+    // Hostinger needs the application to call listen()
+    // quickly. Do NOT wait for MongoDB/Prisma before this.
+    // ----------------------------------------------------------
+
     server = httpServer.listen(env.PORT, '0.0.0.0', () => {
       logger.info(
         `Server running in [${env.NODE_ENV}] mode on port ${env.PORT}`
@@ -46,7 +66,10 @@ const startServer = async () => {
       );
     });
 
-    // Handle HTTP server errors
+    // ----------------------------------------------------------
+    // HTTP SERVER ERROR HANDLER
+    // ----------------------------------------------------------
+
     server.on('error', (err) => {
       if (err.code === 'EADDRINUSE') {
         logger.error(
@@ -62,17 +85,150 @@ const startServer = async () => {
       process.exit(1);
     });
 
-    // Connect to database AFTER HTTP server starts.
-    // This prevents Hostinger from killing the app
-    // while Prisma is establishing the MongoDB connection.
+    // ==========================================================
+    // TEMPORARY MONGODB TEST USING MONGOOSE
+    //
+    // This is ONLY for diagnosing the current Prisma
+    // ReplicaSetNoPrimary problem.
+    //
+    // DO NOT put the MongoDB password in this file.
+    // DATABASE_URL is read from Hostinger environment variables.
+    // ==========================================================
+
     try {
-      logger.info('Connecting to database via Prisma...');
+      logger.info('==========================================');
+      logger.info('=== MONGOOSE MONGODB TEST START ===');
+      logger.info('==========================================');
+
+      if (!env.DATABASE_URL) {
+        throw new Error(
+          'DATABASE_URL is missing from environment variables'
+        );
+      }
+
+      logger.info(
+        'Attempting MongoDB connection using Mongoose...'
+      );
+
+      await mongoose.connect(env.DATABASE_URL, {
+        serverSelectionTimeoutMS: 10000,
+        connectTimeoutMS: 5000,
+      });
+
+      logger.info(
+        '=== MONGOOSE CONNECTED SUCCESSFULLY ==='
+      );
+
+      // --------------------------------------------------------
+      // Ask MongoDB which node is PRIMARY.
+      // --------------------------------------------------------
+
+      const helloResult =
+        await mongoose.connection.db.admin().command({
+          hello: 1,
+        });
+
+      logger.info('=== MONGODB HELLO RESULT ===');
+
+      logger.info({
+        isWritablePrimary: helloResult?.isWritablePrimary,
+        secondary: helloResult?.secondary,
+        setName: helloResult?.setName,
+        primary: helloResult?.primary,
+        hosts: helloResult?.hosts,
+      });
+
+      // --------------------------------------------------------
+      // Easy-to-read PRIMARY status
+      // --------------------------------------------------------
+
+      if (helloResult?.isWritablePrimary === true) {
+        logger.info(
+          '=== MONGODB PRIMARY FOUND ==='
+        );
+
+        logger.info(
+          `MongoDB Primary: ${helloResult.primary || 'current node'}`
+        );
+      } else if (helloResult?.secondary === true) {
+        logger.warn(
+          '=== CONNECTED TO MONGODB SECONDARY ==='
+        );
+
+        logger.warn(
+          'MongoDB driver connected, but this node is not PRIMARY.'
+        );
+
+        logger.warn(
+          `Reported Primary: ${helloResult.primary || 'unknown'}`
+        );
+      } else {
+        logger.warn(
+          '=== MONGODB PRIMARY STATUS UNKNOWN ==='
+        );
+      }
+
+      logger.info(
+        '=== MONGOOSE MONGODB TEST SUCCESS ==='
+      );
+
+      // --------------------------------------------------------
+      // Close temporary Mongoose connection.
+      // Prisma remains responsible for the application DB.
+      // --------------------------------------------------------
+
+      await mongoose.disconnect();
+
+      logger.info(
+        '=== MONGOOSE TEST CONNECTION CLOSED ==='
+      );
+    } catch (mongoError) {
+      logger.error(
+        '=========================================='
+      );
+
+      logger.error(
+        '=== MONGOOSE MONGODB TEST FAILED ==='
+      );
+
+      logger.error(
+        '=========================================='
+      );
+
+      logger.error('MongoDB Error:', {
+        message: mongoError?.message,
+        name: mongoError?.name,
+        code: mongoError?.code,
+        reason: mongoError?.reason?.message,
+        stack: mongoError?.stack,
+      });
+
+      await mongoose.disconnect().catch(() => {});
+
+      logger.error(
+        'Mongoose MongoDB test failed, but HTTP server will remain alive.'
+      );
+    }
+
+    // ==========================================================
+    // PRISMA DATABASE CONNECTION
+    // ==========================================================
+
+    try {
+      logger.info(
+        'Connecting to database via Prisma...'
+      );
 
       await prisma.$connect();
 
-      logger.info('Database connected successfully via Prisma');
+      logger.info(
+        'Database connected successfully via Prisma'
+      );
 
-      // Start seat expiration worker after DB connection
+      // --------------------------------------------------------
+      // START SEAT EXPIRATION WORKER
+      // --------------------------------------------------------
+
       expiryWorkerInterval = setInterval(async () => {
         try {
           await InventoryService.releaseExpiredSeats();
@@ -83,38 +239,58 @@ const startServer = async () => {
         }
       }, 30000);
 
-      logger.info('Seat expiration worker started');
+      logger.info(
+        'Seat expiration worker started'
+      );
     } catch (dbError) {
-      logger.error('Database connection failed:', {
-        message: dbError?.message,
-        name: dbError?.name,
-        code: dbError?.code,
-        stack: dbError?.stack,
-      });
+      logger.error(
+        'Database connection failed via Prisma:',
+        {
+          message: dbError?.message,
+          name: dbError?.name,
+          code: dbError?.code,
+          stack: dbError?.stack,
+        }
+      );
 
-      // Do NOT exit the process.
-      // The HTTP server must remain alive.
+      // IMPORTANT:
+      // Do NOT terminate the HTTP server.
+      // This allows Hostinger to keep the application running
+      // while we diagnose the database problem.
     }
   } catch (error) {
-    logger.error('Failed to start server:', {
-      message: error?.message,
-      name: error?.name,
-      code: error?.code,
-      stack: error?.stack,
-    });
+    logger.error(
+      'Failed to start server:',
+      {
+        message: error?.message,
+        name: error?.name,
+        code: error?.code,
+        stack: error?.stack,
+      }
+    );
 
     process.exit(1);
   }
 };
 
+// ============================================================
+// START APPLICATION
+// ============================================================
+
 startServer();
 
-// Handle unhandled promise rejections
+// ============================================================
+// UNHANDLED PROMISE REJECTION
+// ============================================================
+
 process.on('unhandledRejection', (err) => {
-  logger.error('UNHANDLED REJECTION! Shutting down...', {
-    error: err?.message,
-    stack: err?.stack,
-  });
+  logger.error(
+    'UNHANDLED REJECTION! Shutting down...',
+    {
+      error: err?.message,
+      stack: err?.stack,
+    }
+  );
 
   if (server) {
     server.close(async () => {
@@ -131,33 +307,52 @@ process.on('unhandledRejection', (err) => {
   }
 });
 
-// Graceful shutdown
-const gracefulShutdown = (signal) => {
-  logger.info(`Received ${signal}. Shutting down gracefully...`);
+// ============================================================
+// GRACEFUL SHUTDOWN
+// ============================================================
 
+const gracefulShutdown = (signal) => {
+  logger.info(
+    `Received ${signal}. Shutting down gracefully...`
+  );
+
+  // Stop background worker
   if (expiryWorkerInterval) {
     clearInterval(expiryWorkerInterval);
   }
 
   if (server) {
     server.close(async () => {
+      // Disconnect Prisma
       await prisma.$disconnect().catch(() => {});
 
+      // Disconnect Mongoose if still connected
+      await mongoose.disconnect().catch(() => {});
+
       logger.info(
-        'HTTP server and Database connection closed.'
+        'HTTP server and Database connections closed.'
       );
 
       process.exit(0);
     });
   } else {
-    prisma
-      .$disconnect()
-      .catch(() => {})
-      .finally(() => {
-        process.exit(0);
-      });
+    Promise.all([
+      prisma.$disconnect().catch(() => {}),
+      mongoose.disconnect().catch(() => {}),
+    ]).finally(() => {
+      process.exit(0);
+    });
   }
 };
 
-process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+// ============================================================
+// SHUTDOWN SIGNALS
+// ============================================================
+
+process.on('SIGTERM', () => {
+  gracefulShutdown('SIGTERM');
+});
+
+process.on('SIGINT', () => {
+  gracefulShutdown('SIGINT');
+});
