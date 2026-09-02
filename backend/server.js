@@ -49,21 +49,25 @@ const startServer = async () => {
     // START HTTP SERVER IMMEDIATELY
     //
     // IMPORTANT:
-    // Hostinger needs the application to call listen()
-    // quickly. Do NOT wait for MongoDB/Prisma before this.
+    // Hostinger must receive the listen() call quickly.
+    // Do not wait for MongoDB before starting the server.
     // ----------------------------------------------------------
 
-    server = httpServer.listen(env.PORT, '0.0.0.0', () => {
-      logger.info(
-        `Server running in [${env.NODE_ENV}] mode on port ${env.PORT}`
-      );
+    server = httpServer.listen(
+      env.PORT,
+      '0.0.0.0',
+      () => {
+        logger.info(
+          `Server running in [${env.NODE_ENV}] mode on port ${env.PORT}`
+        );
 
-      logger.info('Swagger OpenAPI Docs: /api-docs');
+        logger.info('Swagger OpenAPI Docs: /api-docs');
 
-      logger.info(
-        `Health Endpoint: /api/${env.API_VERSION}/health`
-      );
-    });
+        logger.info(
+          `Health Endpoint: /api/${env.API_VERSION}/health`
+        );
+      }
+    );
 
     // ----------------------------------------------------------
     // HTTP SERVER ERROR HANDLER
@@ -83,35 +87,6 @@ const startServer = async () => {
 
       process.exit(1);
     });
-
-    
-    } catch (mongoError) {
-      logger.error(
-        '=========================================='
-      );
-
-      logger.error(
-        '=== MONGOOSE MONGODB TEST FAILED ==='
-      );
-
-      logger.error(
-        '=========================================='
-      );
-
-      logger.error('MongoDB Error:', {
-        message: mongoError?.message,
-        name: mongoError?.name,
-        code: mongoError?.code,
-        reason: mongoError?.reason?.message,
-        stack: mongoError?.stack,
-      });
-
-      
-
-      logger.error(
-        'Mongoose MongoDB test failed, but HTTP server will remain alive.'
-      );
-    }
 
     // ==========================================================
     // PRISMA DATABASE CONNECTION
@@ -158,8 +133,8 @@ const startServer = async () => {
 
       // IMPORTANT:
       // Do NOT terminate the HTTP server.
-      // This allows Hostinger to keep the application running
-      // while we diagnose the database problem.
+      // This keeps the application alive even if
+      // MongoDB/Prisma temporarily has a problem.
     }
   } catch (error) {
     logger.error(
@@ -219,32 +194,29 @@ const gracefulShutdown = (signal) => {
     `Received ${signal}. Shutting down gracefully...`
   );
 
-  // Stop background worker
+  // Stop seat expiration worker
   if (expiryWorkerInterval) {
     clearInterval(expiryWorkerInterval);
   }
 
+  // Close HTTP server
   if (server) {
     server.close(async () => {
-      // Disconnect Prisma
       await prisma.$disconnect().catch(() => {});
 
-      // Disconnect Mongoose if still connected
-      await mongoose.disconnect().catch(() => {});
-
       logger.info(
-        'HTTP server and Database connections closed.'
+        'HTTP server and Database connection closed.'
       );
 
       process.exit(0);
     });
   } else {
-    Promise.all([
-      prisma.$disconnect().catch(() => {}),
-      mongoose.disconnect().catch(() => {}),
-    ]).finally(() => {
-      process.exit(0);
-    });
+    prisma
+      .$disconnect()
+      .catch(() => {})
+      .finally(() => {
+        process.exit(0);
+      });
   }
 };
 
