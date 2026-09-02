@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { prisma } from '../config/prisma.js';
 
 /**
@@ -6,7 +7,11 @@ import { prisma } from '../config/prisma.js';
 export class OtpRepository {
   static async createOtp(otpData) {
     return prisma.oTP.create({
-      data: otpData,
+      data: {
+        ...otpData,
+        // Mongo unique index on requestId treats null as a duplicate; always set a UUID.
+        requestId: otpData.requestId || crypto.randomUUID(),
+      },
     });
   }
 

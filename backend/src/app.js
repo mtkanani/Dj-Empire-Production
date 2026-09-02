@@ -14,6 +14,9 @@ import { errorHandler } from './middlewares/error.middleware.js';
 
 const app = express();
 
+// Render (and other reverse proxies) set X-Forwarded-For. Required by express-rate-limit.
+app.set('trust proxy', 1);
+
 // 1. Security Middleware
 app.use(helmet());
 
