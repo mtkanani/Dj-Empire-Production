@@ -1,6 +1,5 @@
 import http from 'http';
 import app from './src/app.js';
-import net from 'net';
 import { env } from './src/config/env.js';
 import { logger } from './src/config/logger.js';
 import { prisma } from './src/config/prisma.js';
@@ -10,7 +9,7 @@ import { InventoryService } from './src/modules/ticketing/services/inventory.ser
 let server;
 let expiryWorkerInterval;
 
-// Handle Uncaught Exceptions
+// Handle uncaught exceptions
 process.on('uncaughtException', (err) => {
   logger.error('UNCAUGHT EXCEPTION! Shutting down...', {
     error: err?.message,
@@ -20,7 +19,6 @@ process.on('uncaughtException', (err) => {
   process.exit(1);
 });
 
-// Start HTTP Server Immediately
 const startServer = async () => {
   try {
     logger.info(`Starting server in [${env.NODE_ENV}] mode`);
@@ -35,7 +33,7 @@ const startServer = async () => {
     logger.info('Socket.IO Real-Time Engine initialized');
 
     // IMPORTANT:
-    // Start listening BEFORE waiting for Prisma.
+    // Start HTTP server BEFORE waiting for Prisma.
     server = httpServer.listen(env.PORT, '0.0.0.0', () => {
       logger.info(
         `Server running in [${env.NODE_ENV}] mode on port ${env.PORT}`
@@ -48,7 +46,7 @@ const startServer = async () => {
       );
     });
 
-    // Handle HTTP Server Errors
+    // Handle HTTP server errors
     server.on('error', (err) => {
       if (err.code === 'EADDRINUSE') {
         logger.error(
@@ -64,59 +62,17 @@ const startServer = async () => {
       process.exit(1);
     });
 
-    // Connect Prisma after HTTP server has started
+    // Connect to database AFTER HTTP server starts.
+    // This prevents Hostinger from killing the app
+    // while Prisma is establishing the MongoDB connection.
     try {
       logger.info('Connecting to database via Prisma...');
-     console.log('=== MONGODB TCP TEST START ===');
-
-
-const mongoHosts = [
-  'ac-tkhomxr-shard-00-00.88ywdkx.mongodb.net',
-  'ac-tkhomxr-shard-00-01.88ywdkx.mongodb.net',
-  'ac-tkhomxr-shard-00-02.88ywdkx.mongodb.net',
-];
-
-await Promise.all(
-  mongoHosts.map(
-    (host) =>
-      new Promise((resolve) => {
-        const socket = new net.Socket();
-
-        socket.setTimeout(1000);
-
-        socket.on('connect', () => {
-          console.log(`=== TCP SUCCESS: ${host}:27017 ===`);
-          socket.destroy();
-          resolve();
-        });
-
-        socket.on('timeout', () => {
-          console.error(`=== TCP TIMEOUT: ${host}:27017 ===`);
-          socket.destroy();
-          resolve();
-        });
-
-        socket.on('error', (error) => {
-          console.error(
-            `=== TCP FAILED: ${host}:27017 === ${error?.message}`
-          );
-          resolve();
-        });
-
-        socket.connect(27017, host);
-      })
-  )
-);
-
-console.log('=== MONGODB TCP TEST END ===');
-
-console.log('=== STARTUP TEST: attempting Prisma connection ===');
 
       await prisma.$connect();
 
       logger.info('Database connected successfully via Prisma');
 
-      // Start background worker only after database connection
+      // Start seat expiration worker after DB connection
       expiryWorkerInterval = setInterval(async () => {
         try {
           await InventoryService.releaseExpiredSeats();
@@ -136,9 +92,8 @@ console.log('=== STARTUP TEST: attempting Prisma connection ===');
         stack: dbError?.stack,
       });
 
-      // Keep HTTP server alive so health endpoint remains accessible.
-      // Database-dependent API requests should fail through normal
-      // application error handling.
+      // Do NOT exit the process.
+      // The HTTP server must remain alive.
     }
   } catch (error) {
     logger.error('Failed to start server:', {
@@ -154,7 +109,7 @@ console.log('=== STARTUP TEST: attempting Prisma connection ===');
 
 startServer();
 
-// Handle Unhandled Promise Rejections
+// Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {
   logger.error('UNHANDLED REJECTION! Shutting down...', {
     error: err?.message,
@@ -176,7 +131,7 @@ process.on('unhandledRejection', (err) => {
   }
 });
 
-// Graceful Shutdown
+// Graceful shutdown
 const gracefulShutdown = (signal) => {
   logger.info(`Received ${signal}. Shutting down gracefully...`);
 
