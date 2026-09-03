@@ -132,16 +132,16 @@ export function buildTicketBundle(booking) {
   };
 }
 
-export async function buildTicketEmailHtml(bundle, qrDataUriMap) {
+export async function buildTicketEmailHtml(bundle, qrUrlMap) {
   const ticketBlocks = bundle.tickets
     .map((ticket) => {
-      const dataUri = qrDataUriMap[ticket.ticketId];
+      const qrUrl = qrUrlMap[ticket.ticketId];
       return `
         <td style="width: 50%; padding: 10px; vertical-align: top;">
           <div style="border: 1px solid #e5e7eb; border-radius: 12px; padding: 14px; text-align: center; background: #fff;">
             <div style="font-size: 12px; color: #6b7280; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase;">Pass ${ticket.index} of ${bundle.tickets.length}</div>
-            ${dataUri
-              ? `<img src="${dataUri}" alt="QR for ${escapeHtml(ticket.ticketCode)}" width="160" height="160" style="margin: 10px 0; border-radius: 8px;" />`
+            ${qrUrl
+              ? `<img src="${qrUrl}" alt="QR for ${escapeHtml(ticket.ticketCode)}" width="160" height="160" style="margin: 10px 0; border-radius: 8px; display: block; margin-left: auto; margin-right: auto;" />`
               : `<div style="margin: 10px 0; padding: 24px; background: #f9fafb; border-radius: 8px; font-size: 12px; color: #6b7280;">QR is on page ${ticket.index} of the attached PDF</div>`}
             <div style="font-family: monospace; font-weight: 800; color: #111827; font-size: 13px;">${escapeHtml(ticket.ticketCode)}</div>
             <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">${escapeHtml(ticket.ticketType)}${ticket.seat ? ` · ${escapeHtml(ticket.seat)}` : ''} · ${escapeHtml(ticket.publicStatus)}</div>
@@ -198,6 +198,17 @@ export async function generateQrPngBuffer(payload) {
     margin: 1,
     errorCorrectionLevel: 'M',
   });
+}
+
+/**
+ * Build a public HTTPS URL that renders a QR code image.
+ * api.qrserver.com is a free, reliable service.
+ * Using https:// URLs works in ALL email clients (Gmail, Outlook, Apple Mail).
+ * base64 data URIs and CID references are blocked by Gmail.
+ */
+export function buildQrImageUrl(payload, size = 200) {
+  const encoded = encodeURIComponent(payload);
+  return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encoded}&margin=10&color=000000&bgcolor=ffffff`;
 }
 
 export function ticketQrPayload(ticket, bookingId) {

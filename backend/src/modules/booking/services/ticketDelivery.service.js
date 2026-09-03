@@ -6,7 +6,7 @@ import { EmailService } from '../../../services/email.service.js';
 import { AppError } from '../../../utils/AppError.js';
 import { HTTP_STATUS } from '../../../constants/httpStatusCodes.js';
 import { logger } from '../../../config/logger.js';
-import { buildTicketBundle, buildTicketEmailHtml, generateQrPngBuffer, ticketQrPayload } from '../utils/ticketBundle.util.js';
+import { buildTicketBundle, buildTicketEmailHtml, ticketQrPayload, buildQrImageUrl } from '../utils/ticketBundle.util.js';
 import { generateTicketsPdf } from '../utils/ticketPdf.util.js';
 import { mapTicketPublicStatus } from '../utils/ticketCode.util.js';
 
@@ -63,18 +63,17 @@ export class TicketDeliveryService {
       throw new AppError('Registered email is missing for this account', HTTP_STATUS.BAD_REQUEST);
     }
 
-    const INLINE_QR_MAX = 24;
-    const qrTickets = bundle.tickets.slice(0, INLINE_QR_MAX);
-
-    // Build base64 data URI map — works with ALL email providers (Resend, SMTP, etc.)
-    // CID inline attachments are NOT supported by Resend's HTTP API.
-    const qrDataUriMap = {};
-    for (const ticket of qrTickets) {
-      const png = await generateQrPngBuffer(ticketQrPayload(ticket, bundle.bookingId));
-      qrDataUriMap[ticket.ticketId] = `data:image/png;base64,${png.toString('base64')}`;
+    // Build public HTTPS QR image URL map.
+    // Using a QR generation API (https://api.qrserver.com) gives a real https:// URL
+    // that ALL email clients (Gmail, Outlook, Apple Mail) can load without blocking.
+    // CID and base64 data URIs are blocked by Gmail.
+    const qrUrlMap = {};
+    for (const ticket of bundle.tickets) {
+      const payload = ticketQrPayload(ticket, bundle.bookingId);
+      qrUrlMap[ticket.ticketId] = buildQrImageUrl(payload);
     }
 
-    // PDF is a normal attachment — works fine with Resend
+    // PDF attachment — works fine with Resend
     const attachments = [];
     try {
       const pdfBuffer = await generateTicketsPdf(bundle);
@@ -87,7 +86,7 @@ export class TicketDeliveryService {
       logger.error(`PDF generation failed for booking ${booking.id}: ${error.message}`);
     }
 
-    const html = await buildTicketEmailHtml(bundle, qrDataUriMap);
+    const html = await buildTicketEmailHtml(bundle, qrUrlMap);
     await EmailService.sendBookingTicketEmail({
       to: bundle.user.email,
       subject: `${isResend ? 'Resend: ' : ''}Your tickets for ${bundle.event.name}`,
@@ -103,7 +102,7 @@ export class TicketDeliveryService {
     return {
       emailSent: true,
       ticketCount: bundle.tickets.length,
-      qrCodesAttached: qrTickets.length,
+      qrCodesAttached: bundle.tickets.length,
     };
   }
 
