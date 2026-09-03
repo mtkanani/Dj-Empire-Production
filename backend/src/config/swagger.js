@@ -15,7 +15,11 @@ const swaggerOptions = {
     servers: [
       {
         url: `http://localhost:${env.PORT}/api/${env.API_VERSION}`,
-        description: 'Local Development Server',
+        description: 'Local',
+      },
+      {
+        url: 'https://dj-empire-production.onrender.com/api/v1',
+        description: 'Render',
       },
     ],
     components: {
