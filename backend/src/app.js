@@ -6,6 +6,7 @@ import compression from 'compression';
 import swaggerUi from 'swagger-ui-express';
 
 import { env } from './config/env.js';
+import { API_PREFIX } from './config/api.js';
 import { logger } from './config/logger.js';
 import { swaggerSpec } from './config/swagger.js';
 import v1Routes from './routes/v1/index.js';
@@ -48,7 +49,7 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 
 // 7. API Routes
-app.use(`/api/${env.API_VERSION}`, v1Routes);
+app.use(API_PREFIX, v1Routes);
 
 // 8. 404 Not Found Handler
 app.use(notFoundHandler);

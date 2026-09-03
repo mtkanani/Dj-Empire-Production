@@ -2,6 +2,7 @@ import http from 'http';
 import dns from 'dns/promises';
 import app from './src/app.js';
 import { env } from './src/config/env.js';
+import { API_PREFIX, API_BASE_URL } from './src/config/api.js';
 import { logger } from './src/config/logger.js';
 import { prisma } from './src/config/prisma.js';
 import { initSocket } from './src/modules/realtime/socket.js';
@@ -73,9 +74,8 @@ await prisma.$connect();
 
       logger.info('📚 Swagger OpenAPI Docs: /api-docs');
 
-      logger.info(
-        `⚡ Health Endpoint: /api/${env.API_VERSION}/health`
-      );
+      logger.info(`⚡ Health Endpoint: ${API_PREFIX}/health`);
+      logger.info(`🌐 API base URL: ${API_BASE_URL}`);
     });
 
     // Start background worker for automatic seat hold expiration

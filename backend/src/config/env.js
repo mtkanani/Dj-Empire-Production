@@ -15,6 +15,13 @@ const envSchema = z.object({
   }).min(1, 'DATABASE_URL cannot be empty'),
   API_VERSION: z.string().default('v1'),
   APP_NAME: z.string().default('Event Booking Platform'),
+  API_PUBLIC_URL: z.preprocess(
+    (val) => {
+      if (val == null || val === '') return undefined;
+      return String(val).trim().replace(/\/+$/, '') || undefined;
+    },
+    z.string().url().optional()
+  ),
 
   // JWT Configuration
   JWT_ACCESS_SECRET: z.string().min(32, 'JWT_ACCESS_SECRET must be at least 32 characters'),
