@@ -92,6 +92,9 @@ function LogoCarousel({ logos = [], speed = 35, direction = "left" }) {
             <img
               src={logo.image}
               alt={logo.name}
+              onError={(e) => {
+                e.currentTarget.style.display = "none";
+              }}
               style={{
                 height: "100%",
                 width: "auto",

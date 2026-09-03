@@ -1,3 +1,4 @@
+import dns from 'node:dns';
 import express from 'express';
 import nodemailer from 'nodemailer';
 import cors from 'cors';
@@ -5,26 +6,26 @@ import dotenv from 'dotenv';
 import { connectDB } from './src/config/db.js';
 import { Contact } from './src/models/Contact.js';
 
-// Load environment variables
+dns.setDefaultResultOrder('ipv4first');
 dotenv.config();
 
-// Connect to MongoDB Cluster
 connectDB();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const smtpUser = process.env.EMAIL_USER || process.env.SMTP_USER;
+const smtpPass = (process.env.EMAIL_PASS || process.env.SMTP_PASS || '').replace(/\s+/g, '');
 
-// Middleware
 app.use(cors());
 app.use(express.json());
 
-// Email configuration
 const transporter = nodemailer.createTransport({
   service: 'gmail',
+  family: 4,
   auth: {
-    user: process.env.EMAIL_USER || 'info.djempire@gmail.com',
-    pass: process.env.EMAIL_PASS || 'ijxk cnjw iijb fwte'
-  }
+    user: smtpUser,
+    pass: smtpPass,
+  },
 });
 
 // Contact form endpoint
@@ -39,9 +40,13 @@ app.post('/api/contact', async (req, res) => {
     // Save submission to MongoDB
     const savedContact = await Contact.create({ name, email, phone, message });
 
+    if (!smtpUser || !smtpPass) {
+      throw new Error('EMAIL_USER/SMTP_USER and EMAIL_PASS/SMTP_PASS must be set');
+    }
+
     const mailOptions = {
-      from: process.env.EMAIL_USER || 'info.djempire@gmail.com',
-      to: 'info.djempire@gmail.com',
+      from: smtpUser,
+      to: smtpUser,
       subject: `New Contact Form Submission from ${name}`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">

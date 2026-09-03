@@ -84,6 +84,9 @@ function ImageCarousel() {
         <img
           src={carouselImages[currentIndex]}
           alt={`Slide ${currentIndex + 1}`}
+          onError={(e) => {
+            e.currentTarget.style.display = "none";
+          }}
           style={{
             width: "100%",
             height: "100%",

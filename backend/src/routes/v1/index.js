@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import healthRoute from './health.route.js';
+import contactRoute from './contact.route.js';
 import authRoute from './auth.route.js';
 import adminRoute from './admin.route.js';
 import organizerRoute from './organizer.route.js';
@@ -14,6 +15,7 @@ const router = Router();
 
 // Mount V1 Sub-routes
 router.use('/health', healthRoute);
+router.use('/contact', contactRoute);
 router.use('/auth', authRoute);
 router.use('/admin', adminRoute);
 router.use('/organizer', organizerRoute);

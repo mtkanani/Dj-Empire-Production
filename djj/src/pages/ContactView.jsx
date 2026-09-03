@@ -3,6 +3,7 @@ import { Mail, Phone, MessageCircle, MapPin, Globe, Send, CheckCircle2 } from "l
 import { PageHeader, Panel, Btn } from "../components/SharedComponents";
 import { Footer } from "../components/Layout";
 import { C } from "../constants";
+import { API_BASE_URL } from "../constants/theme.js";
 
 const inputStyle = {
   width: "100%", padding: "12px 16px", borderRadius: 10, border: `1px solid ${C.border}`,
@@ -29,7 +30,7 @@ function ContactView({ setView }) {
     setSending(true);
     
     try {
-      const response = await fetch('http://localhost:3001/api/contact', {
+      const response = await fetch(`${API_BASE_URL}/contact`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -42,7 +43,7 @@ function ContactView({ setView }) {
       if (data.success) {
         setSent(true);
       } else {
-        alert('Failed to send message. Please try again.');
+        alert(data.message || 'Failed to send message. Please try again.');
       }
     } catch (error) {
       console.error('Error:', error);

@@ -1,8 +1,10 @@
+import path from 'path';
+import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { z } from 'zod';
 
-// Load environment variables from .env file
-dotenv.config();
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 // Define Zod schema for environment variables validation
 const envSchema = z.object({
@@ -27,11 +29,16 @@ const envSchema = z.object({
   // SMTP Configuration
   SMTP_HOST: z.string().default('smtp.gmail.com'),
   SMTP_PORT: z.string().default('587').transform((val) => parseInt(val, 10)),
-  SMTP_USER: z.string().trim().min(1).default('info.djempire@gmail.com'),
+  SMTP_USER: z.string().trim().email('SMTP_USER must be a valid email'),
   SMTP_PASS: z
-    .string()
-    .default('ijxk cnjw iijb fwte')
-    .transform((val) => String(val).replace(/^["']|["']$/g, '').replace(/\s+/g, '')),
+    .string({ required_error: 'SMTP_PASS is required (Gmail App Password)' })
+    .transform((val) =>
+      String(val)
+        .replace(/[\u200B-\u200D\uFEFF]/g, '')
+        .replace(/^["']|["']$/g, '')
+        .replace(/\s+/g, '')
+    )
+    .refine((val) => val.length >= 16, 'SMTP_PASS must be a 16-character Gmail App Password'),
   EMAIL_FROM: z.string().default('Event Booking Platform <info.djempire@gmail.com>'),
 });
 

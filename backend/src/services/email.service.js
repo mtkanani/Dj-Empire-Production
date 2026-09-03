@@ -1,37 +1,33 @@
+import dns from 'node:dns';
 import nodemailer from 'nodemailer';
 import { env } from '../config/env.js';
 import { logger } from '../config/logger.js';
 import { AppError } from '../utils/AppError.js';
 import { HTTP_STATUS } from '../constants/httpStatusCodes.js';
 
-const isGmail = /gmail\.com$/i.test(env.SMTP_HOST);
+dns.setDefaultResultOrder('ipv4first');
 
-const transporter = nodemailer.createTransport(
-  isGmail
-    ? {
-        service: 'gmail',
-        auth: {
-          user: env.SMTP_USER,
-          pass: env.SMTP_PASS,
-        },
-        connectionTimeout: 25000,
-        greetingTimeout: 25000,
-        socketTimeout: 30000,
-      }
-    : {
-        host: env.SMTP_HOST,
-        port: env.SMTP_PORT,
-        secure: env.SMTP_PORT === 465,
-        requireTLS: env.SMTP_PORT === 587,
-        auth: {
-          user: env.SMTP_USER,
-          pass: env.SMTP_PASS,
-        },
-        connectionTimeout: 25000,
-        greetingTimeout: 25000,
-        socketTimeout: 30000,
-      }
-);
+const smtpTimeouts = {
+  connectionTimeout: 25000,
+  greetingTimeout: 25000,
+  socketTimeout: 30000,
+};
+
+const transporter = nodemailer.createTransport({
+  host: env.SMTP_HOST,
+  port: env.SMTP_PORT,
+  secure: env.SMTP_PORT === 465,
+  requireTLS: env.SMTP_PORT === 587,
+  family: 4,
+  auth: {
+    user: env.SMTP_USER,
+    pass: env.SMTP_PASS,
+  },
+  tls: {
+    minVersion: 'TLSv1.2',
+  },
+  ...smtpTimeouts,
+});
 
 const mailFrom = env.EMAIL_FROM.includes(env.SMTP_USER)
   ? env.EMAIL_FROM
@@ -42,10 +38,18 @@ function smtpUserMessage(error) {
   if (/invalid login|535|534|username and password not accepted|badcredentials/i.test(msg)) {
     return 'Could not send email. Gmail rejected the login. On Render, set SMTP_USER to your Gmail and SMTP_PASS to a Google App Password (not your normal password).';
   }
-  if (/timeout|etimedout|esocket|econnrefused|enotfound/i.test(msg)) {
+  if (/timeout|etimedout|esocket|econnrefused|enotfound|enetunreach/i.test(msg)) {
     return 'Could not reach the mail server. If this is Render + Gmail, use Hostinger mailbox SMTP (smtp.hostinger.com, port 465) instead.';
   }
   return `Could not send email: ${msg}`;
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 function logDevOtp(label, toEmail, otpCode) {
@@ -63,11 +67,13 @@ export class EmailService {
   static async verifySmtp() {
     try {
       await transporter.verify();
-      logger.info(`📧 SMTP ready (${env.SMTP_HOST} as ${env.SMTP_USER})`);
+      logger.info(
+        `📧 SMTP ready (${env.SMTP_HOST}:${env.SMTP_PORT} as ${env.SMTP_USER}, pass length ${env.SMTP_PASS.length})`
+      );
     } catch (error) {
       logger.error(`📧 SMTP verify failed: ${error.message}`);
       logger.error(
-        'OTP emails will fail until SMTP_USER / SMTP_PASS (App Password) are set on this server.'
+        `Gmail rejected ${env.SMTP_USER}. Create a NEW App Password at https://myaccount.google.com/apppasswords while signed in as that exact account, paste it into backend/.env SMTP_PASS, save the file, then restart npm run dev.`
       );
     }
   }
@@ -159,6 +165,43 @@ export class EmailService {
       });
     } catch (error) {
       logger.error(`❌ Failed to send approval email to ${toEmail}: ${error.message}`);
+    }
+  }
+
+  static async sendContactFormEmail({ name, email, phone, message }) {
+    const to = env.SMTP_USER;
+    const subject = `New Contact Form Submission from ${name}`;
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2 style="color: #333; border-bottom: 2px solid #FFD700; padding-bottom: 10px;">New Contact Form Submission</h2>
+        <div style="margin: 20px 0;">
+          <p style="margin: 10px 0;"><strong>Name:</strong> ${escapeHtml(name)}</p>
+          <p style="margin: 10px 0;"><strong>Email:</strong> ${escapeHtml(email)}</p>
+          <p style="margin: 10px 0;"><strong>Phone:</strong> ${escapeHtml(phone || 'Not provided')}</p>
+          <p style="margin: 10px 0;"><strong>Message:</strong></p>
+          <div style="background: #f5f5f5; padding: 15px; border-radius: 5px; margin-top: 10px; white-space: pre-wrap;">
+            ${escapeHtml(message)}
+          </div>
+        </div>
+        <p style="color: #666; font-size: 12px; margin-top: 30px;">
+          This message was sent from the D J EMPIRE PRODUCTION contact form.
+        </p>
+      </div>
+    `;
+
+    try {
+      const info = await transporter.sendMail({
+        from: mailFrom,
+        to,
+        replyTo: email,
+        subject,
+        html,
+      });
+      logger.info(`📧 Contact form emailed to ${to}: ${info.messageId}`);
+      return info;
+    } catch (error) {
+      logger.error(`❌ Contact form email failed: ${error.message}`);
+      throw new AppError(smtpUserMessage(error), HTTP_STATUS.SERVICE_UNAVAILABLE);
     }
   }
 
