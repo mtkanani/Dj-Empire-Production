@@ -48,7 +48,19 @@ app.get('/favicon.ico', (req, res) => res.status(204).end());
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 
-// 7. API Routes
+// 7. Root health-check route (Render pings HEAD / to verify the service is up)
+app.get('/', (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    app: env.APP_NAME,
+    version: env.API_VERSION,
+    docs: `${env.API_PUBLIC_URL || ''}/api-docs`,
+  });
+});
+// Render also uses HEAD / — respond with 200 and no body
+app.head('/', (req, res) => res.status(200).end());
+
+// 8. API Routes
 app.use(API_PREFIX, v1Routes);
 
 // 8. 404 Not Found Handler
