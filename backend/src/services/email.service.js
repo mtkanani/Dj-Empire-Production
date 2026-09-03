@@ -7,31 +7,35 @@ import { HTTP_STATUS } from '../constants/httpStatusCodes.js';
 
 dns.setDefaultResultOrder('ipv4first');
 
-const smtpTimeouts = {
-  connectionTimeout: 25000,
-  greetingTimeout: 25000,
-  socketTimeout: 30000,
-};
+const smtpPort = Number(env.SMTP_PORT || 587);
 
+// Port 587 = STARTTLS (secure: false). Port 465 = implicit TLS (secure: true).
 const transporter = nodemailer.createTransport({
   host: env.SMTP_HOST,
-  port: env.SMTP_PORT,
-  secure: env.SMTP_PORT === 465,
-  requireTLS: env.SMTP_PORT === 587,
+  port: smtpPort,
+  secure: smtpPort === 465,
+  requireTLS: smtpPort === 587,
   family: 4,
   auth: {
     user: env.SMTP_USER,
     pass: env.SMTP_PASS,
   },
-  tls: {
-    minVersion: 'TLSv1.2',
-  },
-  ...smtpTimeouts,
+  connectionTimeout: 25000,
+  greetingTimeout: 25000,
+  socketTimeout: 30000,
 });
 
-const mailFrom = env.EMAIL_FROM.includes(env.SMTP_USER)
-  ? env.EMAIL_FROM
-  : `"${env.APP_NAME}" <${env.SMTP_USER}>`;
+async function sendAppMail({ to, subject, html, text, replyTo, attachments }) {
+  return transporter.sendMail({
+    from: env.EMAIL_FROM,
+    to,
+    replyTo,
+    subject,
+    html,
+    text,
+    attachments,
+  });
+}
 
 function smtpUserMessage(error) {
   const msg = String(error?.message || 'Unknown mail error');
@@ -67,14 +71,13 @@ export class EmailService {
   static async verifySmtp() {
     try {
       await transporter.verify();
+      console.log('✅ Gmail SMTP connection successful');
       logger.info(
-        `📧 SMTP ready (${env.SMTP_HOST}:${env.SMTP_PORT} as ${env.SMTP_USER}, pass length ${env.SMTP_PASS.length})`
+        `📧 SMTP ready (${env.SMTP_HOST}:${smtpPort} as ${env.SMTP_USER}, pass length ${env.SMTP_PASS.length})`
       );
     } catch (error) {
+      console.error('❌ Gmail SMTP connection failed:', error);
       logger.error(`📧 SMTP verify failed: ${error.message}`);
-      logger.error(
-        `Gmail rejected ${env.SMTP_USER}. Create a NEW App Password at https://myaccount.google.com/apppasswords while signed in as that exact account, paste it into backend/.env SMTP_PASS, save the file, then restart npm run dev.`
-      );
     }
   }
 
@@ -98,8 +101,7 @@ export class EmailService {
     `;
 
     try {
-      const info = await transporter.sendMail({
-        from: mailFrom,
+      const info = await sendAppMail({
         to: toEmail,
         subject,
         html,
@@ -128,8 +130,7 @@ export class EmailService {
     `;
 
     try {
-      const info = await transporter.sendMail({
-        from: mailFrom,
+      const info = await sendAppMail({
         to: toEmail,
         subject,
         html,
@@ -157,8 +158,7 @@ export class EmailService {
     `;
 
     try {
-      await transporter.sendMail({
-        from: mailFrom,
+      await sendAppMail({
         to: toEmail,
         subject,
         html,
@@ -169,7 +169,6 @@ export class EmailService {
   }
 
   static async sendContactFormEmail({ name, email, phone, message }) {
-    const to = env.SMTP_USER;
     const subject = `New Contact Form Submission from ${name}`;
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -190,14 +189,13 @@ export class EmailService {
     `;
 
     try {
-      const info = await transporter.sendMail({
-        from: mailFrom,
-        to,
+      const info = await sendAppMail({
+        to: env.SMTP_USER,
         replyTo: email,
         subject,
         html,
       });
-      logger.info(`📧 Contact form emailed to ${to}: ${info.messageId}`);
+      logger.info(`📧 Contact form emailed to ${env.SMTP_USER}: ${info.messageId}`);
       return info;
     } catch (error) {
       logger.error(`❌ Contact form email failed: ${error.message}`);
@@ -206,8 +204,7 @@ export class EmailService {
   }
 
   static async sendBookingTicketEmail({ to, subject, html, attachments = [] }) {
-    const info = await transporter.sendMail({
-      from: mailFrom,
+    const info = await sendAppMail({
       to,
       subject,
       html,
