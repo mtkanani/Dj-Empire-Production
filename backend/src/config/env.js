@@ -36,17 +36,22 @@ const envSchema = z.object({
   SUPER_ADMIN_EMAIL: z.string().email().default('admin@eventbooking.com'),
   SUPER_ADMIN_PASSWORD: z.string().default('SuperAdminPassword123!'),
 
-  // SMTP Configuration
+  // Resend API (preferred for cloud deployments - bypasses SMTP port blocks)
+  RESEND_API_KEY: z.string().optional(),
+
+  // SMTP Configuration (fallback for local dev)
   SMTP_HOST: z.string().default('smtp.hostinger.com'),
   SMTP_PORT: z.string().default('465').transform((val) => parseInt(val, 10)),
-  SMTP_USER: z.string().trim().email('SMTP_USER must be the full mailbox email'),
+  SMTP_USER: z.string().trim().email('SMTP_USER must be the full mailbox email').optional(),
   SMTP_PASS: z
-    .string({ required_error: 'SMTP_PASS is required (Hostinger mailbox password)' })
-    .min(1, 'SMTP_PASS cannot be empty')
+    .string()
+    .optional()
     .transform((val) =>
-      String(val)
-        .replace(/[\u200B-\u200D\uFEFF]/g, '')
-        .replace(/^["']|["']$/g, '')
+      val
+        ? String(val)
+            .replace(/[\u200B-\u200D\uFEFF]/g, '')
+            .replace(/^["']|["']$/g, '')
+        : val
     ),
   EMAIL_FROM: z.string().default('Event Booking Platform <info@djempireproduction.djempireproductions.com>'),
 });

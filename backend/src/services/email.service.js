@@ -1,5 +1,6 @@
 import dns from 'node:dns';
 import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 import { env } from '../config/env.js';
 import { logger } from '../config/logger.js';
 import { AppError } from '../utils/AppError.js';
@@ -7,26 +8,65 @@ import { HTTP_STATUS } from '../constants/httpStatusCodes.js';
 
 dns.setDefaultResultOrder('ipv4first');
 
-const smtpPort = Number(env.SMTP_PORT || 587);
+// ─── Transport Selection ────────────────────────────────────────────────────
+// On Render (and most cloud platforms), outbound SMTP ports 25/465/587 are
+// blocked to prevent spam. Resend uses HTTPS (port 443) instead — always open.
+//
+//   RESEND_API_KEY set  →  use Resend HTTP API  (production / cloud)
+//   RESEND_API_KEY not set →  use Nodemailer SMTP (local dev)
 
-// Port 587 = STARTTLS (secure: false). Port 465 = implicit TLS (secure: true).
-const transporter = nodemailer.createTransport({
-  host: env.SMTP_HOST,
-  port: smtpPort,
-  secure: smtpPort === 465,
-  requireTLS: smtpPort === 587,
-  family: 4,
-  auth: {
-    user: env.SMTP_USER,
-    pass: env.SMTP_PASS,
-  },
-  connectionTimeout: 25000,
-  greetingTimeout: 25000,
-  socketTimeout: 30000,
-});
+const USE_RESEND = Boolean(env.RESEND_API_KEY);
 
+let resendClient = null;
+let smtpTransporter = null;
+
+if (USE_RESEND) {
+  resendClient = new Resend(env.RESEND_API_KEY);
+  logger.info('📧 Email transport: Resend HTTP API (SMTP port blocks bypassed)');
+} else {
+  const smtpPort = Number(env.SMTP_PORT || 587);
+  smtpTransporter = nodemailer.createTransport({
+    host: env.SMTP_HOST,
+    port: smtpPort,
+    secure: smtpPort === 465,
+    requireTLS: smtpPort === 587,
+    family: 4,
+    auth: {
+      user: env.SMTP_USER,
+      pass: env.SMTP_PASS,
+    },
+    connectionTimeout: 25000,
+    greetingTimeout: 25000,
+    socketTimeout: 30000,
+  });
+  logger.info(`📧 Email transport: Nodemailer SMTP (${env.SMTP_HOST}:${smtpPort})`);
+}
+
+// ─── Internal send helper ───────────────────────────────────────────────────
 async function sendAppMail({ to, subject, html, text, replyTo, attachments }) {
-  return transporter.sendMail({
+  if (USE_RESEND) {
+    const payload = {
+      from: env.EMAIL_FROM,
+      to: Array.isArray(to) ? to : [to],
+      subject,
+      html,
+      text,
+    };
+    if (replyTo) payload.reply_to = replyTo;
+    if (attachments?.length) {
+      // Resend expects { filename, content (Buffer|string) }
+      payload.attachments = attachments.map((a) => ({
+        filename: a.filename,
+        content: a.content,
+      }));
+    }
+    const { data, error } = await resendClient.emails.send(payload);
+    if (error) throw new Error(error.message || JSON.stringify(error));
+    return { messageId: data?.id };
+  }
+
+  // SMTP fallback
+  return smtpTransporter.sendMail({
     from: env.EMAIL_FROM,
     to,
     replyTo,
@@ -37,6 +77,7 @@ async function sendAppMail({ to, subject, html, text, replyTo, attachments }) {
   });
 }
 
+// ─── Helpers ────────────────────────────────────────────────────────────────
 function smtpUserMessage(error) {
   const msg = String(error?.message || 'Unknown mail error');
   if (/invalid login|535|534|550|username and password not accepted|badcredentials|authentication failed/i.test(msg)) {
@@ -64,17 +105,23 @@ function logDevOtp(label, toEmail, otpCode) {
   console.log('==================================================\n');
 }
 
+// ─── Email Service ──────────────────────────────────────────────────────────
 /**
- * Reusable Email Service using Nodemailer
+ * Reusable Email Service
+ * Uses Resend (HTTP API) when RESEND_API_KEY is set, SMTP otherwise.
  */
 export class EmailService {
   static async verifySmtp() {
+    if (USE_RESEND) {
+      // Resend has no "verify" concept — just log that it's ready.
+      console.log('✅ Resend email client ready (HTTP API — no SMTP port needed)');
+      logger.info(`📧 Resend ready (EMAIL_FROM: ${env.EMAIL_FROM})`);
+      return;
+    }
     try {
-      await transporter.verify();
+      await smtpTransporter.verify();
       console.log('✅ SMTP connection successful');
-      logger.info(
-        `📧 SMTP ready (${env.SMTP_HOST}:${smtpPort} as ${env.SMTP_USER})`
-      );
+      logger.info(`📧 SMTP ready (${env.SMTP_HOST}:${env.SMTP_PORT} as ${env.SMTP_USER})`);
     } catch (error) {
       console.error('❌ SMTP connection failed:', error);
       logger.error(`📧 SMTP verify failed: ${error.message}`);
@@ -101,11 +148,7 @@ export class EmailService {
     `;
 
     try {
-      const info = await sendAppMail({
-        to: toEmail,
-        subject,
-        html,
-      });
+      const info = await sendAppMail({ to: toEmail, subject, html });
       logger.info(`📧 Email sent to ${toEmail}: ${info.messageId}`);
       return info;
     } catch (error) {
@@ -130,11 +173,7 @@ export class EmailService {
     `;
 
     try {
-      const info = await sendAppMail({
-        to: toEmail,
-        subject,
-        html,
-      });
+      const info = await sendAppMail({ to: toEmail, subject, html });
       logger.info(`📧 Password reset OTP emailed (message ${info.messageId})`);
       return info;
     } catch (error) {
@@ -151,18 +190,11 @@ export class EmailService {
         <h2 style="color: #27AE60; text-align: center;">Congratulations, ${companyName}!</h2>
         <p style="color: #333; font-size: 16px;">Your Event Organizer account has been reviewed and approved by the Super Admin team.</p>
         <p style="color: #666; font-size: 15px;">You can now log into your account and start creating and publishing events on ${env.APP_NAME}.</p>
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="http://localhost:3000/api-docs" style="background-color: #27AE60; color: white; padding: 12px 24px; border-radius: 5px; text-decoration: none; font-weight: bold;">Log In Now</a>
-        </div>
       </div>
     `;
 
     try {
-      await sendAppMail({
-        to: toEmail,
-        subject,
-        html,
-      });
+      await sendAppMail({ to: toEmail, subject, html });
     } catch (error) {
       logger.error(`❌ Failed to send approval email to ${toEmail}: ${error.message}`);
     }
@@ -190,12 +222,12 @@ export class EmailService {
 
     try {
       const info = await sendAppMail({
-        to: env.SMTP_USER,
+        to: env.SMTP_USER || env.EMAIL_FROM,
         replyTo: email,
         subject,
         html,
       });
-      logger.info(`📧 Contact form emailed to ${env.SMTP_USER}: ${info.messageId}`);
+      logger.info(`📧 Contact form emailed: ${info.messageId}`);
       return info;
     } catch (error) {
       logger.error(`❌ Contact form email failed: ${error.message}`);
@@ -204,12 +236,7 @@ export class EmailService {
   }
 
   static async sendBookingTicketEmail({ to, subject, html, attachments = [] }) {
-    const info = await sendAppMail({
-      to,
-      subject,
-      html,
-      attachments,
-    });
+    const info = await sendAppMail({ to, subject, html, attachments });
     logger.info(`📧 Ticket email sent to ${to}: ${info.messageId}`);
     return info;
   }
