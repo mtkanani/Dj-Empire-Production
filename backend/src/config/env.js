@@ -37,19 +37,18 @@ const envSchema = z.object({
   SUPER_ADMIN_PASSWORD: z.string().default('SuperAdminPassword123!'),
 
   // SMTP Configuration
-  SMTP_HOST: z.string().default('smtp.gmail.com'),
-  SMTP_PORT: z.string().default('587').transform((val) => parseInt(val, 10)),
-  SMTP_USER: z.string().trim().email('SMTP_USER must be a valid email'),
+  SMTP_HOST: z.string().default('smtp.hostinger.com'),
+  SMTP_PORT: z.string().default('465').transform((val) => parseInt(val, 10)),
+  SMTP_USER: z.string().trim().email('SMTP_USER must be the full mailbox email'),
   SMTP_PASS: z
-    .string({ required_error: 'SMTP_PASS is required (Gmail App Password)' })
+    .string({ required_error: 'SMTP_PASS is required (Hostinger mailbox password)' })
+    .min(1, 'SMTP_PASS cannot be empty')
     .transform((val) =>
       String(val)
         .replace(/[\u200B-\u200D\uFEFF]/g, '')
         .replace(/^["']|["']$/g, '')
-        .replace(/\s+/g, '')
-    )
-    .refine((val) => val.length >= 16, 'SMTP_PASS must be a 16-character Gmail App Password'),
-  EMAIL_FROM: z.string().default('Event Booking Platform <info.djempire@gmail.com>'),
+    ),
+  EMAIL_FROM: z.string().default('Event Booking Platform <info@djempireproduction.djempireproductions.com>'),
 });
 
 const envInput = {

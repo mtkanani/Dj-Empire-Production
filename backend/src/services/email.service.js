@@ -39,11 +39,11 @@ async function sendAppMail({ to, subject, html, text, replyTo, attachments }) {
 
 function smtpUserMessage(error) {
   const msg = String(error?.message || 'Unknown mail error');
-  if (/invalid login|535|534|username and password not accepted|badcredentials/i.test(msg)) {
-    return 'Could not send email. Gmail rejected the login. On Render, set SMTP_USER to your Gmail and SMTP_PASS to a Google App Password (not your normal password).';
+  if (/invalid login|535|534|550|username and password not accepted|badcredentials|authentication failed/i.test(msg)) {
+    return 'Could not send email. SMTP login failed. Check SMTP_USER (full mailbox email) and SMTP_PASS (Hostinger mailbox password).';
   }
   if (/timeout|etimedout|esocket|econnrefused|enotfound|enetunreach/i.test(msg)) {
-    return 'Could not reach the mail server. If this is Render + Gmail, use Hostinger mailbox SMTP (smtp.hostinger.com, port 465) instead.';
+    return 'Could not reach the mail server. Confirm SMTP_HOST=smtp.hostinger.com and SMTP_PORT=465.';
   }
   return `Could not send email: ${msg}`;
 }
@@ -71,12 +71,12 @@ export class EmailService {
   static async verifySmtp() {
     try {
       await transporter.verify();
-      console.log('✅ Gmail SMTP connection successful');
+      console.log('✅ SMTP connection successful');
       logger.info(
-        `📧 SMTP ready (${env.SMTP_HOST}:${smtpPort} as ${env.SMTP_USER}, pass length ${env.SMTP_PASS.length})`
+        `📧 SMTP ready (${env.SMTP_HOST}:${smtpPort} as ${env.SMTP_USER})`
       );
     } catch (error) {
-      console.error('❌ Gmail SMTP connection failed:', error);
+      console.error('❌ SMTP connection failed:', error);
       logger.error(`📧 SMTP verify failed: ${error.message}`);
     }
   }
