@@ -201,14 +201,15 @@ export async function generateQrPngBuffer(payload) {
 }
 
 /**
- * Build a public HTTPS URL that renders a QR code image.
- * api.qrserver.com is a free, reliable service.
- * Using https:// URLs works in ALL email clients (Gmail, Outlook, Apple Mail).
- * base64 data URIs and CID references are blocked by Gmail.
+ * Build a public HTTPS URL served by our own backend.
+ * GET /api/v1/qr/:ticketCode  →  returns QR PNG image
+ *
+ * This gives a short, clean https:// URL that ALL email clients can load:
+ * Gmail, Outlook, Apple Mail — no blocking, no stripping.
  */
-export function buildQrImageUrl(payload, size = 200) {
-  const encoded = encodeURIComponent(payload);
-  return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encoded}&margin=10&color=000000&bgcolor=ffffff`;
+export function buildQrImageUrl(ticketCode) {
+  const base = env.API_PUBLIC_URL || 'https://dj-empire-production.onrender.com';
+  return `${base}/api/v1/qr/${encodeURIComponent(ticketCode)}`;
 }
 
 export function ticketQrPayload(ticket, bookingId) {

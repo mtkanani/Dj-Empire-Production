@@ -5,6 +5,7 @@ import authRoute from './auth.route.js';
 import adminRoute from './admin.route.js';
 import organizerRoute from './organizer.route.js';
 import customerRoute from './customer.route.js';
+import qrRoute from './qr.route.js';
 import { eventRoutes, categoryRoutes } from '../../modules/event/index.js';
 import { sectionRoutes, ticketingRoutes } from '../../modules/ticketing/index.js';
 import { bookingRoutes } from '../../modules/booking/index.js';
@@ -20,6 +21,8 @@ router.use('/auth', authRoute);
 router.use('/admin', adminRoute);
 router.use('/organizer', organizerRoute);
 router.use('/customer', customerRoute);
+// Public QR image endpoint — used as <img src> in ticket emails
+router.use('/qr', qrRoute);
 
 // Mount Event & Category Routes
 router.use('/events', eventRoutes);

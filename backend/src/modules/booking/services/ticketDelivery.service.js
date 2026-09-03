@@ -6,7 +6,7 @@ import { EmailService } from '../../../services/email.service.js';
 import { AppError } from '../../../utils/AppError.js';
 import { HTTP_STATUS } from '../../../constants/httpStatusCodes.js';
 import { logger } from '../../../config/logger.js';
-import { buildTicketBundle, buildTicketEmailHtml, ticketQrPayload, buildQrImageUrl } from '../utils/ticketBundle.util.js';
+import { buildTicketBundle, buildTicketEmailHtml, buildQrImageUrl } from '../utils/ticketBundle.util.js';
 import { generateTicketsPdf } from '../utils/ticketPdf.util.js';
 import { mapTicketPublicStatus } from '../utils/ticketCode.util.js';
 
@@ -63,14 +63,12 @@ export class TicketDeliveryService {
       throw new AppError('Registered email is missing for this account', HTTP_STATUS.BAD_REQUEST);
     }
 
-    // Build public HTTPS QR image URL map.
-    // Using a QR generation API (https://api.qrserver.com) gives a real https:// URL
-    // that ALL email clients (Gmail, Outlook, Apple Mail) can load without blocking.
-    // CID and base64 data URIs are blocked by Gmail.
+    // Build self-hosted QR image URL for each ticket.
+    // The endpoint GET /api/v1/qr/:ticketCode returns a PNG directly.
+    // Using our own https:// URL works in ALL email clients — Gmail, Outlook, Apple Mail.
     const qrUrlMap = {};
     for (const ticket of bundle.tickets) {
-      const payload = ticketQrPayload(ticket, bundle.bookingId);
-      qrUrlMap[ticket.ticketId] = buildQrImageUrl(payload);
+      qrUrlMap[ticket.ticketId] = buildQrImageUrl(ticket.ticketCode);
     }
 
     // PDF attachment — works fine with Resend
