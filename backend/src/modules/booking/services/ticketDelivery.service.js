@@ -63,27 +63,21 @@ export class TicketDeliveryService {
       throw new AppError('Registered email is missing for this account', HTTP_STATUS.BAD_REQUEST);
     }
 
-const INLINE_QR_MAX = 24;
-
-    const qrCidMap = {};
-    const attachments = [];
+    const INLINE_QR_MAX = 24;
     const qrTickets = bundle.tickets.slice(0, INLINE_QR_MAX);
 
+    // Build base64 data URI map — works with ALL email providers (Resend, SMTP, etc.)
+    // CID inline attachments are NOT supported by Resend's HTTP API.
+    const qrDataUriMap = {};
     for (const ticket of qrTickets) {
-      const cid = `ticket-qr-${ticket.ticketId}@booking`;
-      qrCidMap[ticket.ticketId] = cid;
       const png = await generateQrPngBuffer(ticketQrPayload(ticket, bundle.bookingId));
-      attachments.push({
-        filename: `qr-${ticket.ticketCode}.png`,
-        content: png,
-        cid,
-        contentType: 'image/png',
-      });
+      qrDataUriMap[ticket.ticketId] = `data:image/png;base64,${png.toString('base64')}`;
     }
 
-    let pdfBuffer = null;
+    // PDF is a normal attachment — works fine with Resend
+    const attachments = [];
     try {
-      pdfBuffer = await generateTicketsPdf(bundle);
+      const pdfBuffer = await generateTicketsPdf(bundle);
       attachments.push({
         filename: `tickets-${bundle.bookingNumber}.pdf`,
         content: pdfBuffer,
@@ -93,7 +87,7 @@ const INLINE_QR_MAX = 24;
       logger.error(`PDF generation failed for booking ${booking.id}: ${error.message}`);
     }
 
-    const html = await buildTicketEmailHtml(bundle, qrCidMap);
+    const html = await buildTicketEmailHtml(bundle, qrDataUriMap);
     await EmailService.sendBookingTicketEmail({
       to: bundle.user.email,
       subject: `${isResend ? 'Resend: ' : ''}Your tickets for ${bundle.event.name}`,
