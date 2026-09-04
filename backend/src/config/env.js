@@ -26,6 +26,9 @@ const envSchema = z.object({
     z.string().url().optional()
   ),
 
+  // CORS Configuration
+  CORS_ORIGIN: z.string().optional(),
+
   // JWT Configuration
   JWT_ACCESS_SECRET: z.string().min(32, 'JWT_ACCESS_SECRET must be at least 32 characters'),
   JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),

@@ -22,24 +22,68 @@ app.set('trust proxy', 1);
 app.use(helmet());
 
 // 2. CORS Middleware
-// Allow origins from CORS_ORIGIN env var (comma-separated list)
-const allowedOrigins = env.CORS_ORIGIN
-  ? env.CORS_ORIGIN.split(',').map((o) => o.trim())
-  : ['http://localhost:5173', 'http://localhost:3000'];
+const defaultAllowedOrigins = [
+  'https://djempireproductions.com',
+  'https://www.djempireproductions.com',
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://localhost:5174',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:3000',
+];
 
-app.use(cors({
-  origin: (origin, callback) => {
-    // Allow requests with no origin (mobile apps, curl, Render health checks)
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
-      return callback(null, true);
+const envOrigins = (env.CORS_ORIGIN || process.env.CORS_ORIGIN || '')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+
+const normalizeOrigin = (val) => (val || '').trim().replace(/\/+$/, '').toLowerCase();
+
+const allowedOriginsSet = new Set(
+  [...defaultAllowedOrigins, ...envOrigins].map(normalizeOrigin)
+);
+
+const isOriginAllowed = (origin) => {
+  // Allow requests with no origin (mobile apps, curl, server-to-server, Render health checks)
+  if (!origin) return true;
+
+  const cleanOrigin = normalizeOrigin(origin);
+
+  if (allowedOriginsSet.has('*') || allowedOriginsSet.has(cleanOrigin)) {
+    return true;
+  }
+
+  // Allow main domain and any subdomains for djempireproductions.com
+  try {
+    const parsed = new URL(cleanOrigin);
+    if (
+      parsed.hostname === 'djempireproductions.com' ||
+      parsed.hostname.endsWith('.djempireproductions.com')
+    ) {
+      return true;
     }
-    return callback(new Error(`CORS: Origin ${origin} not allowed`));
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-}));
+  } catch {
+    // Ignore URL parse error
+  }
+
+  return false;
+};
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (isOriginAllowed(origin)) {
+        return callback(null, true);
+      }
+      logger.warn(`CORS: Origin ${origin} not allowed`);
+      return callback(new Error(`CORS: Origin ${origin} not allowed`));
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+    exposedHeaders: ['Content-Disposition'],
+  })
+);
 
 // 3. Compression Middleware
 app.use(compression());
