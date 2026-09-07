@@ -5,7 +5,7 @@ import { C } from '../../constants/theme.js';
 import { customerEventService } from '../../services/customer/customerEventService.js';
 import { customerBookingService } from '../../services/customer/customerBookingService.js';
 import { CustomerNavbar } from '../../components/customer/CustomerNavbar.jsx';
-import { CustomerFooter } from '../../components/customer/CustomerFooter.jsx';
+import { Footer } from '../../components/Layout.jsx';
 import { BookingStepper } from '../../components/customer/booking/BookingStepper.jsx';
 import { QuantitySelector } from '../../components/customer/booking/QuantitySelector.jsx';
 import { useBooking } from '../../context/BookingContext.jsx';
@@ -125,7 +125,7 @@ export default function TicketSelectionPage() {
       <div style={{ minHeight: '100vh', background: C.bgMain, color: C.text, display: 'flex', flexDirection: 'column' }}>
         <CustomerNavbar />
         <div style={{ flexGrow: 1, padding: '80px 24px', textAlign: 'center', color: C.muted }}>Loading available ticket tiers...</div>
-        <CustomerFooter />
+        <Footer />
       </div>
     );
   }
@@ -301,7 +301,7 @@ export default function TicketSelectionPage() {
         )}
       </main>
 
-      <CustomerFooter />
+      <Footer />
     </div>
   );
 }

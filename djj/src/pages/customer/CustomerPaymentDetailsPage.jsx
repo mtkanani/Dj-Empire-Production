@@ -4,7 +4,7 @@ import { ArrowLeft, CreditCard, FileText, ShieldCheck, Calendar, CheckCircle2 } 
 import { C } from '../../constants/theme.js';
 import { paymentService } from '../../services/payment/paymentService.js';
 import { CustomerNavbar } from '../../components/customer/CustomerNavbar.jsx';
-import { CustomerFooter } from '../../components/customer/CustomerFooter.jsx';
+import { Footer } from '../../components/Layout.jsx';
 import { PaymentStatusBadge } from '../../components/payment/PaymentStatusBadge.jsx';
 import { formatDate, formatCurrency } from '../../utils/formatters.js';
 
@@ -38,7 +38,7 @@ export default function CustomerPaymentDetailsPage() {
       <div style={{ minHeight: '100vh', background: C.bgMain, color: C.text, display: 'flex', flexDirection: 'column' }}>
         <CustomerNavbar />
         <div style={{ flexGrow: 1, padding: '80px 24px', textAlign: 'center', color: C.muted }}>Loading transaction details...</div>
-        <CustomerFooter />
+        <Footer />
       </div>
     );
   }
@@ -54,7 +54,7 @@ export default function CustomerPaymentDetailsPage() {
             Back to Payment History
           </button>
         </div>
-        <CustomerFooter />
+        <Footer />
       </div>
     );
   }
@@ -134,7 +134,7 @@ export default function CustomerPaymentDetailsPage() {
         </div>
       </main>
 
-      <CustomerFooter />
+      <Footer />
     </div>
   );
 }

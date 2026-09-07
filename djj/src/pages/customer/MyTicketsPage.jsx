@@ -4,7 +4,7 @@ import { Ticket, Calendar, MapPin, QrCode, Clock, ShieldCheck, X, ChevronLeft, C
 import { C } from '../../constants/theme.js';
 import { customerBookingService } from '../../services/customer/customerBookingService.js';
 import { CustomerNavbar } from '../../components/customer/CustomerNavbar.jsx';
-import { CustomerFooter } from '../../components/customer/CustomerFooter.jsx';
+import { Footer } from '../../components/Layout.jsx';
 import { DigitalTicketCard } from '../../components/ticket/DigitalTicketCard.jsx';
 import { TicketActions } from '../../components/ticket/TicketActions.jsx';
 import { getBookingTickets } from '../../utils/ticketUtils.js';
@@ -387,7 +387,7 @@ export default function MyTicketsPage() {
         )}
       </main>
 
-      <CustomerFooter />
+      <Footer />
     </div>
   );
 }

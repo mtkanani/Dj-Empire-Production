@@ -4,7 +4,7 @@ import { Ticket, Search, Calendar, MapPin, ArrowRight, CheckCircle2, Clock, XCir
 import { C } from '../../constants/theme.js';
 import { customerBookingService } from '../../services/customer/customerBookingService.js';
 import { CustomerNavbar } from '../../components/customer/CustomerNavbar.jsx';
-import { CustomerFooter } from '../../components/customer/CustomerFooter.jsx';
+import { Footer } from '../../components/Layout.jsx';
 import { PaymentStatusBadge } from '../../components/payment/PaymentStatusBadge.jsx';
 import { formatCurrency } from '../../utils/formatters.js';
 import { getEventBannerUrl } from '../../utils/eventImage.js';
@@ -258,7 +258,7 @@ export default function CustomerBookingsPage() {
         )}
       </main>
 
-      <CustomerFooter />
+      <Footer />
     </div>
   );
 }

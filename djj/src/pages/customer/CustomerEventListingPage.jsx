@@ -4,7 +4,7 @@ import { Search, Filter, RefreshCw, Layers } from 'lucide-react';
 import { C } from '../../constants/theme.js';
 import { customerEventService } from '../../services/customer/customerEventService.js';
 import { CustomerNavbar } from '../../components/customer/CustomerNavbar.jsx';
-import { CustomerFooter } from '../../components/customer/CustomerFooter.jsx';
+import { Footer } from '../../components/Layout.jsx';
 import { EventFilters } from '../../components/customer/EventFilters.jsx';
 import { EventGrid } from '../../components/customer/EventGrid.jsx';
 
@@ -142,7 +142,7 @@ export default function CustomerEventListingPage() {
         </div>
       </main>
 
-      <CustomerFooter />
+      <Footer />
     </div>
   );
 }

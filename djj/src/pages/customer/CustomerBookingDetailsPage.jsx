@@ -4,7 +4,7 @@ import { ArrowLeft, FileText, AlertTriangle, XCircle } from 'lucide-react';
 import { C } from '../../constants/theme.js';
 import { customerBookingService } from '../../services/customer/customerBookingService.js';
 import { CustomerNavbar } from '../../components/customer/CustomerNavbar.jsx';
-import { CustomerFooter } from '../../components/customer/CustomerFooter.jsx';
+import { Footer } from '../../components/Layout.jsx';
 import { PaymentStatusBadge } from '../../components/payment/PaymentStatusBadge.jsx';
 import { TicketQrGrid } from '../../components/ticket/TicketQrGrid.jsx';
 import { TicketActions } from '../../components/ticket/TicketActions.jsx';
@@ -68,7 +68,7 @@ export default function CustomerBookingDetailsPage() {
       <div style={{ minHeight: '100vh', background: C.bgMain, color: C.text, display: 'flex', flexDirection: 'column' }}>
         <CustomerNavbar />
         <div style={{ flexGrow: 1, padding: '80px 24px', textAlign: 'center', color: C.muted }}>Loading your ticket pass details...</div>
-        <CustomerFooter />
+        <Footer />
       </div>
     );
   }
@@ -84,7 +84,7 @@ export default function CustomerBookingDetailsPage() {
             Return to My Bookings
           </button>
         </div>
-        <CustomerFooter />
+        <Footer />
       </div>
     );
   }
@@ -277,7 +277,7 @@ export default function CustomerBookingDetailsPage() {
         </div>
       )}
 
-      <CustomerFooter />
+      <Footer />
     </div>
   );
 }

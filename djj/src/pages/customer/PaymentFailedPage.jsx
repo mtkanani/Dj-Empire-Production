@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { AlertTriangle, RefreshCw, ArrowLeft } from 'lucide-react';
 import { C } from '../../constants/theme.js';
 import { CustomerNavbar } from '../../components/customer/CustomerNavbar.jsx';
-import { CustomerFooter } from '../../components/customer/CustomerFooter.jsx';
+import { Footer } from '../../components/Layout.jsx';
 
 export default function PaymentFailedPage() {
   const { bookingId } = useParams();
@@ -47,7 +47,7 @@ export default function PaymentFailedPage() {
         </div>
       </main>
 
-      <CustomerFooter />
+      <Footer />
     </div>
   );
 }

@@ -4,7 +4,7 @@ import { ArrowLeft, ArrowRight, User, Mail, Phone, Lock, AlertCircle } from 'luc
 import { C } from '../../constants/theme.js';
 import { customerBookingService } from '../../services/customer/customerBookingService.js';
 import { CustomerNavbar } from '../../components/customer/CustomerNavbar.jsx';
-import { CustomerFooter } from '../../components/customer/CustomerFooter.jsx';
+import { Footer } from '../../components/Layout.jsx';
 import { BookingStepper } from '../../components/customer/booking/BookingStepper.jsx';
 import { ReservationTimer } from '../../components/customer/booking/ReservationTimer.jsx';
 import { OrderSummaryCard } from '../../components/customer/booking/OrderSummaryCard.jsx';
@@ -262,7 +262,7 @@ export default function CustomerDetailsPage() {
         </div>
       </main>
 
-      <CustomerFooter />
+      <Footer />
     </div>
   );
 }

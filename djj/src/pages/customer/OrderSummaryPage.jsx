@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, ShieldCheck, CheckCircle2, FileText, CreditCard } from 'lucide-react';
 import { C } from '../../constants/theme.js';
 import { CustomerNavbar } from '../../components/customer/CustomerNavbar.jsx';
-import { CustomerFooter } from '../../components/customer/CustomerFooter.jsx';
+import { Footer } from '../../components/Layout.jsx';
 import { BookingStepper } from '../../components/customer/booking/BookingStepper.jsx';
 import { OrderSummaryCard } from '../../components/customer/booking/OrderSummaryCard.jsx';
 import { useBooking } from '../../context/BookingContext.jsx';
@@ -96,7 +96,7 @@ export default function OrderSummaryPage() {
         </div>
       </main>
 
-      <CustomerFooter />
+      <Footer />
     </div>
   );
 }

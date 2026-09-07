@@ -5,7 +5,7 @@ import { C } from '../../constants/theme.js';
 import { customerEventService } from '../../services/customer/customerEventService.js';
 import { eventService } from '../../services/organizer/eventService.js';
 import { CustomerNavbar } from '../../components/customer/CustomerNavbar.jsx';
-import { CustomerFooter } from '../../components/customer/CustomerFooter.jsx';
+import { Footer } from '../../components/Layout.jsx';
 import { EventFAQAccordion } from '../../components/customer/EventFAQAccordion.jsx';
 import { EventPoliciesCard } from '../../components/customer/EventPoliciesCard.jsx';
 import { formatCurrency } from '../../utils/formatters.js';
@@ -77,7 +77,7 @@ export default function CustomerEventDetailsPage() {
       <div style={{ minHeight: '100vh', background: C.bgMain, color: C.text, display: 'flex', flexDirection: 'column' }}>
         <CustomerNavbar />
         <div style={{ flexGrow: 1, padding: '80px 24px', textAlign: 'center', color: C.muted }}>Loading event details...</div>
-        <CustomerFooter />
+        <Footer />
       </div>
     );
   }
@@ -93,7 +93,7 @@ export default function CustomerEventDetailsPage() {
             Back to Explore Events
           </button>
         </div>
-        <CustomerFooter />
+        <Footer />
       </div>
     );
   }
@@ -321,7 +321,7 @@ export default function CustomerEventDetailsPage() {
         </div>
       </main>
 
-      <CustomerFooter />
+      <Footer />
     </div>
   );
 }

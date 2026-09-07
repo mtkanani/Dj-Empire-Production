@@ -5,7 +5,7 @@ import { C } from '../../constants/theme.js';
 import { customerPaymentService } from '../../services/customer/customerPaymentService.js';
 import { customerBookingService } from '../../services/customer/customerBookingService.js';
 import { CustomerNavbar } from '../../components/customer/CustomerNavbar.jsx';
-import { CustomerFooter } from '../../components/customer/CustomerFooter.jsx';
+import { Footer } from '../../components/Layout.jsx';
 import { BookingStepper } from '../../components/customer/booking/BookingStepper.jsx';
 import { RazorpayButton } from '../../components/customer/booking/RazorpayButton.jsx';
 import { PayPalButton } from '../../components/customer/booking/PayPalButton.jsx';
@@ -213,7 +213,7 @@ export default function PaymentMethodPage() {
         </div>
       </main>
 
-      <CustomerFooter />
+      <Footer />
     </div>
   );
 }

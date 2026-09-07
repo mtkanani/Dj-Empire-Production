@@ -4,7 +4,7 @@ import { CheckCircle2, Calendar, MapPin, ArrowRight, Clock, Mail } from 'lucide-
 import { C } from '../../constants/theme.js';
 import { customerBookingService } from '../../services/customer/customerBookingService.js';
 import { CustomerNavbar } from '../../components/customer/CustomerNavbar.jsx';
-import { CustomerFooter } from '../../components/customer/CustomerFooter.jsx';
+import { Footer } from '../../components/Layout.jsx';
 import { TicketQrGrid } from '../../components/ticket/TicketQrGrid.jsx';
 import { TicketActions } from '../../components/ticket/TicketActions.jsx';
 import { formatCurrency } from '../../utils/formatters.js';
@@ -41,7 +41,7 @@ export default function BookingConfirmationPage() {
       <div style={{ minHeight: '100vh', background: C.bgMain, color: C.text, display: 'flex', flexDirection: 'column' }}>
         <CustomerNavbar />
         <div style={{ flexGrow: 1, padding: '80px 24px', textAlign: 'center', color: C.muted }}>Verifying booking confirmation...</div>
-        <CustomerFooter />
+        <Footer />
       </div>
     );
   }
@@ -57,7 +57,7 @@ export default function BookingConfirmationPage() {
             Back to Explore Events
           </button>
         </div>
-        <CustomerFooter />
+        <Footer />
       </div>
     );
   }
@@ -207,7 +207,7 @@ export default function BookingConfirmationPage() {
         </div>
       </main>
 
-      <CustomerFooter />
+      <Footer />
     </div>
   );
 }

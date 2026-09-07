@@ -4,7 +4,7 @@ import { Calendar, Sparkles, ArrowRight, Music, Cpu, Trophy, Film } from 'lucide
 import { C } from '../../constants/theme.js';
 import { customerEventService } from '../../services/customer/customerEventService.js';
 import { CustomerNavbar } from '../../components/customer/CustomerNavbar.jsx';
-import { CustomerFooter } from '../../components/customer/CustomerFooter.jsx';
+import { Footer } from '../../components/Layout.jsx';
 import { EventSearchHero } from '../../components/customer/EventSearchHero.jsx';
 import { EventGrid } from '../../components/customer/EventGrid.jsx';
 
@@ -126,7 +126,7 @@ export default function CustomerHomePage() {
         </section>
       </main>
 
-      <CustomerFooter />
+      <Footer />
     </div>
   );
 }

@@ -4,7 +4,7 @@ import { CreditCard, Search, Filter, FileText, ArrowRight, Eye, Calendar } from 
 import { C } from '../../constants/theme.js';
 import { paymentService } from '../../services/payment/paymentService.js';
 import { CustomerNavbar } from '../../components/customer/CustomerNavbar.jsx';
-import { CustomerFooter } from '../../components/customer/CustomerFooter.jsx';
+import { Footer } from '../../components/Layout.jsx';
 import { PaymentStatusBadge } from '../../components/payment/PaymentStatusBadge.jsx';
 import { formatDate, formatCurrency } from '../../utils/formatters.js';
 
@@ -199,7 +199,7 @@ export default function CustomerPaymentHistoryPage() {
         )}
       </main>
 
-      <CustomerFooter />
+      <Footer />
     </div>
   );
 }
