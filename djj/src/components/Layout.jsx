@@ -30,7 +30,7 @@ function Footer({ setView }) {
               width: "auto",
               objectFit: "contain",
               marginBottom: 20,
-              filter: "drop-shadow(0 4px 20px rgba(255, 215, 0, 0.3))"
+              filter: "drop-shadow(0 4px 20px rgba(255, 215, 0, 0.35))"
             }}
           />
           <div style={{ 
