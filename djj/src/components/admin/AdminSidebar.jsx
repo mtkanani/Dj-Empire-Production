@@ -2,7 +2,7 @@ import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Building, Users, Calendar, Tag, MapPin, Landmark,
-  Receipt, CreditCard, ShieldAlert, Bell, Settings, ChevronLeft, ChevronRight
+  Receipt, CreditCard, ShieldAlert, Bell, Settings, ChevronLeft, ChevronRight, Banknote
 } from 'lucide-react';
 import { C } from '../../constants/theme.js';
 
@@ -16,6 +16,7 @@ export const adminNavItems = [
   { id: 'venues', label: 'Venues', route: '/admin/venues', icon: Landmark },
   { id: 'tax-settings', label: 'Tax Settings', route: '/admin/tax-settings', icon: Receipt },
   { id: 'payments', label: 'Payments', route: '/admin/payments', icon: CreditCard },
+  { id: 'cash-verify', label: 'Cash Verify', route: '/admin/cash-verify', icon: Banknote },
   { id: 'audit-logs', label: 'Audit Logs', route: '/admin/audit-logs', icon: ShieldAlert },
   { id: 'notifications', label: 'Notifications', route: '/admin/notifications', icon: Bell },
   { id: 'settings', label: 'Settings', route: '/admin/settings', icon: Settings },

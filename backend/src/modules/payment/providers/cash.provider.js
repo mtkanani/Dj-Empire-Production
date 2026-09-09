@@ -1,7 +1,14 @@
 import { IPaymentProvider } from './paymentProvider.interface.js';
+import { AppError } from '../../../utils/AppError.js';
+import { HTTP_STATUS } from '../../../constants/httpStatusCodes.js';
 
 /**
  * Cash Payment Provider Implementation (Offline Events)
+ *
+ * Cash is settled in person, so it has no gateway callback to verify. A cash
+ * booking may only be marked paid by an authorised SUPER_ADMIN / EVENT_ORGANIZER
+ * through CashVerificationService, never through the customer-facing
+ * POST /payments/verify route.
  */
 export class CashProvider extends IPaymentProvider {
   async createOrder({ bookingId, amount, currency = 'INR' }) {
@@ -14,12 +21,11 @@ export class CashProvider extends IPaymentProvider {
     };
   }
 
-  async verifyPayment({ gatewayOrderId }) {
-    return {
-      verified: true,
-      gatewayPaymentId: `CASH-REC-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
-      gatewayTransactionId: `CASH-TXN-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
-    };
+  async verifyPayment() {
+    throw new AppError(
+      'Cash payments cannot be self-verified. An authorised administrator or organizer must confirm the cash was physically received.',
+      HTTP_STATUS.FORBIDDEN
+    );
   }
 
   async processRefund({ amount }) {
@@ -31,6 +37,6 @@ export class CashProvider extends IPaymentProvider {
   }
 
   async parseWebhook() {
-    return { verified: true, eventType: 'CASH_PAID', status: 'Paid' };
+    throw new AppError('Cash payments do not support webhook confirmation', HTTP_STATUS.FORBIDDEN);
   }
 }

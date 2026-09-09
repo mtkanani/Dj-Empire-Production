@@ -8,6 +8,7 @@ import { prisma } from './src/config/prisma.js';
 import { initSocket } from './src/modules/realtime/socket.js';
 import { InventoryService } from './src/modules/ticketing/services/inventory.service.js';
 import { EmailService } from './src/services/email.service.js';
+import { CashVerificationService } from './src/modules/booking/services/cashVerification.service.js';
 
 let server;
 let expiryWorkerInterval;
@@ -82,9 +83,10 @@ await prisma.$connect();
     expiryWorkerInterval = setInterval(async () => {
       try {
         await InventoryService.releaseExpiredSeats();
+        await CashVerificationService.expireUnpaidCashBookings();
       } catch (err) {
         logger.error(
-          `Error in seat hold release worker: ${err.message}`
+          `Error in seat hold / cash expiry worker: ${err.message}`
         );
       }
     }, 30000);

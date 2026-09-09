@@ -11,8 +11,9 @@ import { AppError } from '../../../utils/AppError.js';
 import { HTTP_STATUS } from '../../../constants/httpStatusCodes.js';
 import { isValidObjectId } from '../../../utils/objectId.util.js';
 import { RealtimeService } from '../../realtime/services/realtime.service.js';
+import { PAID_PAYMENT_STATUSES } from '../../../constants/paymentStatus.js';
 
-const PAID_STATUSES = new Set([PaymentStatus.Paid, PaymentStatus.Captured]);
+const PAID_STATUSES = new Set(PAID_PAYMENT_STATUSES);
 const ADMITTABLE_BOOKING = new Set([BookingStatus.Confirmed, BookingStatus.CheckedIn]);
 const BLOCKED_BOOKING = new Set([
   BookingStatus.Cancelled,

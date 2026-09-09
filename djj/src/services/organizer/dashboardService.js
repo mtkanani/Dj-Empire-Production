@@ -94,7 +94,7 @@ export const dashboardService = {
         const bStatus = (b.bookingStatus || b.status || '').toUpperCase();
         const pStatus = (b.paymentStatus || '').toUpperCase();
 
-        if (bStatus === 'CONFIRMED' || bStatus === 'CHECKEDIN' || bStatus === 'CHECKED_IN' || bStatus === 'COMPLETED' || pStatus === 'PAID' || pStatus === 'COMPLETED') {
+        if (bStatus === 'CONFIRMED' || bStatus === 'CHECKEDIN' || bStatus === 'CHECKED_IN' || bStatus === 'COMPLETED' || pStatus === 'PAID' || pStatus === 'CASH_RECEIVED' || pStatus === 'COMPLETED') {
           dateMap[dateStr].revenue += Number(b.totalAmount || 0);
           dateMap[dateStr].sales += 1;
           dateMap[dateStr].tickets += Array.isArray(b.tickets) && b.tickets.length > 0 ? b.tickets.length : (b.quantity || 1);
@@ -113,7 +113,7 @@ export const dashboardService = {
       evBookings.forEach((b) => {
         const bStatus = (b.bookingStatus || b.status || '').toUpperCase();
         const pStatus = (b.paymentStatus || '').toUpperCase();
-        if (bStatus === 'CONFIRMED' || bStatus === 'CHECKEDIN' || bStatus === 'CHECKED_IN' || bStatus === 'COMPLETED' || pStatus === 'PAID' || pStatus === 'COMPLETED') {
+        if (bStatus === 'CONFIRMED' || bStatus === 'CHECKEDIN' || bStatus === 'CHECKED_IN' || bStatus === 'COMPLETED' || pStatus === 'PAID' || pStatus === 'CASH_RECEIVED' || pStatus === 'COMPLETED') {
           evRevenue += Number(b.totalAmount || 0);
           evTicketsSold += Array.isArray(b.tickets) && b.tickets.length > 0 ? b.tickets.length : (b.quantity || 1);
         }

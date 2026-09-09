@@ -1,4 +1,6 @@
 import { IPaymentProvider } from './paymentProvider.interface.js';
+import { AppError } from '../../../utils/AppError.js';
+import { HTTP_STATUS } from '../../../constants/httpStatusCodes.js';
 
 /**
  * Bank Transfer Payment Provider Implementation (Manual Verification)
@@ -20,12 +22,13 @@ export class BankTransferProvider extends IPaymentProvider {
     };
   }
 
-  async verifyPayment({ gatewayOrderId }) {
-    return {
-      verified: true,
-      gatewayPaymentId: `BANK-REC-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
-      gatewayTransactionId: `BANK-TXN-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
-    };
+  async verifyPayment() {
+    // Bank transfers settle out of band and must be confirmed by staff, never by
+    // the paying customer.
+    throw new AppError(
+      'Bank transfers cannot be self-verified. An authorised administrator must confirm receipt of funds.',
+      HTTP_STATUS.FORBIDDEN
+    );
   }
 
   async processRefund({ amount }) {
@@ -37,6 +40,6 @@ export class BankTransferProvider extends IPaymentProvider {
   }
 
   async parseWebhook() {
-    return { verified: true, eventType: 'BANK_PAID', status: 'Paid' };
+    throw new AppError('Bank transfers do not support webhook confirmation', HTTP_STATUS.FORBIDDEN);
   }
 }

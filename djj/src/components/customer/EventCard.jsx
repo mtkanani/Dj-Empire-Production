@@ -50,7 +50,7 @@ export const EventCard = ({ event }) => {
       }}
     >
       {/* Event Banner Container */}
-      <div style={{ position: 'relative', width: '100%', height: '180px', background: '#111622', overflow: 'hidden' }}>
+      <div className="event-card-banner" style={{ position: 'relative', width: '100%', height: '180px', background: '#111622', overflow: 'hidden' }}>
         {bannerUrl ? (
           <img
             src={bannerUrl}
@@ -108,8 +108,9 @@ export const EventCard = ({ event }) => {
       </div>
 
       {/* Content Area */}
-      <div style={{ padding: '20px', flexGrow: 1, display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <div className="event-card-body" style={{ padding: '20px', flexGrow: 1, display: 'flex', flexDirection: 'column', gap: '12px' }}>
         <h3
+          className="event-card-title"
           style={{
             margin: 0,
             fontSize: '17px',
@@ -159,6 +160,13 @@ export const EventCard = ({ event }) => {
           <ArrowRight size={16} />
         </div>
       </div>
+      <style>{`
+        @media (max-width: 480px) {
+          .event-card-banner { height: 160px !important; }
+          .event-card-body { padding: 16px !important; gap: 10px !important; }
+          .event-card-title { font-size: 16px !important; }
+        }
+      `}</style>
     </div>
   );
 };

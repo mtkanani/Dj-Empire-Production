@@ -13,7 +13,9 @@ const SUPPORTED_CURRENCIES = [
 // 1. Create Payment Order Schema
 export const createPaymentOrderSchema = z.object({
   bookingId: z.string().min(1, 'Booking ID is required'),
-  gateway: z.enum(['RAZORPAY', 'PAYPAL', 'STRIPE', 'CASH', 'BANK_TRANSFER']).optional(),
+  // CASH and BANK_TRANSFER are settled offline by staff, never through this
+  // customer-facing create-order route. PAYPAL is retired.
+  gateway: z.enum(['RAZORPAY']).optional(),
   currency: z.string().toUpperCase().refine((val) => SUPPORTED_CURRENCIES.includes(val), {
     message: `Unsupported currency code. Must be one of: [${SUPPORTED_CURRENCIES.join(', ')}]`,
   }).default('INR'),

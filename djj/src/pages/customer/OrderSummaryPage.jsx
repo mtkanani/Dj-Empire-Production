@@ -1,18 +1,17 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, ShieldCheck, CheckCircle2, FileText, CreditCard } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CreditCard } from 'lucide-react';
 import { C } from '../../constants/theme.js';
 import { CustomerNavbar } from '../../components/customer/CustomerNavbar.jsx';
 import { Footer } from '../../components/Layout.jsx';
 import { BookingStepper } from '../../components/customer/booking/BookingStepper.jsx';
 import { OrderSummaryCard } from '../../components/customer/booking/OrderSummaryCard.jsx';
 import { useBooking } from '../../context/BookingContext.jsx';
-import { formatCurrency } from '../../utils/formatters.js';
 
 export default function OrderSummaryPage() {
   const { eventId } = useParams();
   const navigate = useNavigate();
-  const { event, booking, selectedTickets, customerDetails } = useBooking();
+  const { event, booking, selectedTickets, customerDetails, attendees } = useBooking();
 
   const selectedItemsArray = Object.values(selectedTickets || {}).map((it) => ({
     name: it.ticketType?.name || 'Standard Admission',
@@ -69,6 +68,19 @@ export default function OrderSummaryPage() {
           </div>
 
           <OrderSummaryCard event={event} items={selectedItemsArray} booking={booking} />
+
+          {attendees?.length > 0 && (
+            <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: '20px', padding: '20px' }}>
+              <h4 style={{ margin: '0 0 12px', fontFamily: 'Space Grotesk, sans-serif' }}>Attendees</h4>
+              <ol style={{ margin: 0, paddingLeft: '18px', color: C.text, fontSize: '14px' }}>
+                {attendees.map((a, i) => (
+                  <li key={i} style={{ marginBottom: '6px' }}>
+                    {a.fullName} · {a.mobileNumber} {a.identityDocumentId ? '· ID uploaded' : ''}
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
 
           {/* Action CTA */}
           <button

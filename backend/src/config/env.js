@@ -57,6 +57,35 @@ const envSchema = z.object({
         : val
     ),
   EMAIL_FROM: z.string().default('Event Booking Platform <info@djempireproduction.djempireproductions.com>'),
+
+  // Razorpay credentials. Without these, order creation and signature
+  // verification are refused rather than approved blindly.
+  RAZORPAY_KEY_ID: z.string().optional(),
+  RAZORPAY_KEY_SECRET: z.string().optional(),
+  RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
+
+  // Cloudflare R2 (S3-compatible) private object storage for identity documents
+  R2_ACCOUNT_ID: z.string().optional(),
+  R2_ACCESS_KEY_ID: z.string().optional(),
+  R2_SECRET_ACCESS_KEY: z.string().optional(),
+  R2_BUCKET: z.string().optional(),
+  R2_REGION: z.string().default('auto'),
+
+  // Identity document upload limits
+  IDENTITY_DOC_MAX_BYTES: z
+    .string()
+    .default('5242880')
+    .transform((val) => parseInt(val, 10)),
+  IDENTITY_DOC_URL_TTL_SECONDS: z
+    .string()
+    .default('300')
+    .transform((val) => parseInt(val, 10)),
+
+  // How long an unpaid cash booking holds its inventory before auto-cancellation
+  CASH_BOOKING_EXPIRY_HOURS: z
+    .string()
+    .default('24')
+    .transform((val) => parseInt(val, 10)),
 });
 
 const envInput = {

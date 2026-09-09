@@ -1,5 +1,6 @@
-import { Role, BookingStatus } from '@prisma/client';
+import { Role, BookingStatus, PaymentGateway, PaymentStatus } from '@prisma/client';
 import { prisma } from '../../../config/prisma.js';
+import { env } from '../../../config/env.js';
 import { BookingRepository } from '../repositories/booking.repository.js';
 import { ReservationRepository } from '../repositories/reservation.repository.js';
 import { EventRepository } from '../../event/repositories/event.repository.js';
@@ -8,9 +9,14 @@ import { TicketTypeRepository } from '../../ticketing/repositories/ticketingSubR
 import { TicketingService } from '../../ticketing/services/ticketing.service.js';
 import { TaxSettingService } from '../../../services/taxSetting.service.js';
 import { TicketDeliveryService } from './ticketDelivery.service.js';
+import { IdentityDocumentService } from '../../identity/identityDocument.service.js';
+import { PaymentRepository } from '../../payment/repositories/payment.repository.js';
+import { EmailService } from '../../../services/email.service.js';
 import { AppError } from '../../../utils/AppError.js';
 import { HTTP_STATUS } from '../../../constants/httpStatusCodes.js';
 import { isValidObjectId } from '../../../utils/objectId.util.js';
+import { presentBooking } from '../utils/presentBooking.util.js';
+import { logger } from '../../../config/logger.js';
 
 /**
  * Domain Service for Customer Booking & Reservation Lifecycle
@@ -69,6 +75,37 @@ export class BookingService {
           ];
 
     const totalQty = lineItems.reduce((sum, item) => sum + (item.quantity || 0), 0) || dto.quantity || 1;
+
+    const attendees = Array.isArray(dto.attendees) ? dto.attendees : [];
+    if (attendees.length !== totalQty) {
+      throw new AppError(
+        `Number of attendees (${attendees.length}) must exactly match the number of tickets (${totalQty})`,
+        HTTP_STATUS.UNPROCESSABLE_ENTITY
+      );
+    }
+
+    const identityRequired = env.NODE_ENV === 'production';
+    const documentIds = attendees.map((a) => a.identityDocumentId).filter(Boolean);
+    if (identityRequired && documentIds.length !== attendees.length) {
+      throw new AppError('Identity document is required for every attendee', HTTP_STATUS.BAD_REQUEST);
+    }
+    if (new Set(documentIds).size !== documentIds.length) {
+      throw new AppError('Each attendee must upload a unique identity document', HTTP_STATUS.BAD_REQUEST);
+    }
+
+    const resolvedAttendees = [];
+    for (let i = 0; i < attendees.length; i += 1) {
+      const attendee = attendees[i];
+      if (attendee.identityDocumentId) {
+        await IdentityDocumentService.assertOwnedUnconsumed(attendee.identityDocumentId, customerId);
+      }
+      resolvedAttendees.push({
+        attendeeIndex: i,
+        fullName: attendee.fullName,
+        mobileNumber: attendee.mobileNumber,
+        identityDocumentId: attendee.identityDocumentId || null,
+      });
+    }
 
     let unitPrice = event.price;
     const targetTicketId = isValidObjectId(dto.ticketTypeId)
@@ -160,7 +197,7 @@ export class BookingService {
       ];
     }
 
-    // 4. Create Booking record & items
+    // 4. Create Booking record, items, and attendees
     const booking = await BookingRepository.createBooking(
       {
         customerId,
@@ -181,35 +218,73 @@ export class BookingService {
         notes: dto.notes || null,
         reservationNumber: dto.reservationNumber || null,
         reservationId: dto.reservationId || null,
+        paymentGateway: dto.paymentGateway || null,
       },
-      bookingItems
+      bookingItems,
+      resolvedAttendees
     );
 
+    await IdentityDocumentService.consumeMany(documentIds);
+
+    if (dto.paymentGateway === PaymentGateway.CASH || dto.paymentGateway === 'CASH') {
+      await PaymentRepository.createPayment({
+        bookingId: booking.id,
+        eventId: booking.eventId,
+        userId: customerId,
+        gateway: PaymentGateway.CASH,
+        gatewayOrderId: `CASH-ORD-${booking.bookingNumber}`,
+        currency: booking.currency,
+        subtotal: booking.subtotal,
+        discount: booking.discount + booking.couponDiscount,
+        taxAmount: booking.gstAmount,
+        platformFee: booking.platformFee,
+        bookingFee: booking.bookingFee,
+        serviceCharge: booking.serviceCharge,
+        totalAmount: booking.totalAmount,
+        paymentMethod: 'CASH',
+        paymentStatus: PaymentStatus.Pending,
+      });
+
+      try {
+        await EmailService.sendCashPendingEmail({
+          to: booking.customer?.email,
+          bookingNumber: booking.bookingNumber,
+          eventName: booking.event?.title,
+          quantity: booking.quantity,
+          totalAmount: booking.totalAmount,
+          currency: booking.currency,
+          attendees: booking.attendees || resolvedAttendees,
+        });
+      } catch (err) {
+        logger.error(`Cash pending email failed for booking ${booking.bookingNumber}: ${err.message}`);
+      }
+    }
+
     await BookingRepository.createAuditLog(customerId, 'CREATE_BOOKING', 'Booking', booking.id, null, booking);
-    return booking;
+    return presentBooking(await BookingRepository.findById(booking.id), { isStaff: false });
   }
 
   /**
    * Confirm Booking after Payment Callback
    */
-  static async confirmBooking(bookingId, transactionId) {
+  static async confirmBooking(bookingId, transactionId, options = {}) {
     const booking = await BookingRepository.findById(bookingId);
     if (!booking) throw new AppError('Booking not found', HTTP_STATUS.NOT_FOUND);
 
     if (booking.bookingStatus === BookingStatus.Confirmed) {
       if (!booking.ticketEmailSentAt) {
         const emailResult = await TicketDeliveryService.deliverAfterConfirm(booking);
-        return { ...booking, emailSent: emailResult.emailSent, emailMessage: emailResult.emailMessage };
+        return { ...presentBooking(booking, { isStaff: true }), emailSent: emailResult.emailSent, emailMessage: emailResult.emailMessage };
       }
-      return { ...booking, emailSent: true, emailMessage: 'Tickets already issued.' };
+      return { ...presentBooking(booking, { isStaff: true }), emailSent: true, emailMessage: 'Tickets already issued.' };
     }
 
-    const confirmedBooking = await BookingRepository.confirmBooking(bookingId, transactionId);
+    const confirmedBooking = await BookingRepository.confirmBooking(bookingId, transactionId, options);
     await BookingRepository.createAuditLog(booking.customerId, 'CONFIRM_BOOKING', 'Booking', bookingId, booking, confirmedBooking);
 
     const emailResult = await TicketDeliveryService.deliverAfterConfirm(confirmedBooking);
     return {
-      ...confirmedBooking,
+      ...presentBooking(confirmedBooking, { isStaff: true }),
       emailSent: emailResult.emailSent,
       emailMessage: emailResult.emailMessage,
     };
@@ -256,27 +331,32 @@ export class BookingService {
       throw new AppError('Access denied', HTTP_STATUS.FORBIDDEN);
     }
 
-    return booking;
+    return presentBooking(booking, {
+      isStaff: user.role === Role.SUPER_ADMIN || user.role === Role.EVENT_ORGANIZER,
+    });
   }
 
   /**
    * Customer My Bookings
    */
   static async getCustomerBookings(customerId, query = {}) {
-    return BookingRepository.searchAndFilter({ ...query, customerId });
+    const result = await BookingRepository.searchAndFilter({ ...query, customerId });
+    return { ...result, data: result.data.map((booking) => presentBooking(booking, { isStaff: false })) };
   }
 
   /**
    * Organizer Event Bookings
    */
   static async getOrganizerBookings(organizerId, query = {}) {
-    return BookingRepository.searchAndFilter({ ...query, organizerId });
+    const result = await BookingRepository.searchAndFilter({ ...query, organizerId });
+    return { ...result, data: result.data.map((booking) => presentBooking(booking, { isStaff: true })) };
   }
 
   /**
    * Admin All Bookings
    */
   static async getAdminBookings(query = {}) {
-    return BookingRepository.searchAndFilter(query);
+    const result = await BookingRepository.searchAndFilter(query);
+    return { ...result, data: result.data.map((booking) => presentBooking(booking, { isStaff: true })) };
   }
 }

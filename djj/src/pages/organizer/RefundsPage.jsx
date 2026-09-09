@@ -34,7 +34,7 @@ export default function RefundsPage() {
       if (paymentsRes.status === 'fulfilled') {
         const data = paymentsRes.value.data || paymentsRes.value;
         const list = (Array.isArray(data) ? data : []).filter((p) =>
-          ['Paid', 'Captured', 'PartiallyRefunded'].includes(p.paymentStatus)
+          ['Paid', 'Captured', 'CASH_RECEIVED', 'PartiallyRefunded'].includes(p.paymentStatus)
         );
         setPaidPayments(list);
         if (list.length > 0 && !selectedPaymentId) {

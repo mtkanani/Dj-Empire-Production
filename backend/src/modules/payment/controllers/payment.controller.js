@@ -18,7 +18,7 @@ export class PaymentController {
   });
 
   static verifyPayment = asyncHandler(async (req, res) => {
-    const result = await PaymentService.verifyPayment(req.body);
+    const result = await PaymentService.verifyPayment(req.user.userId, req.body);
     return ApiResponse.success(res, {
       statusCode: HTTP_STATUS.OK,
       message: result.message,
@@ -27,7 +27,7 @@ export class PaymentController {
   });
 
   static getPaymentById = asyncHandler(async (req, res) => {
-    const data = await PaymentService.getPaymentDetails(req.params.paymentId);
+    const data = await PaymentService.getPaymentDetails(req.params.paymentId, req.user);
     return ApiResponse.success(res, {
       statusCode: HTTP_STATUS.OK,
       message: 'Payment transaction details retrieved',

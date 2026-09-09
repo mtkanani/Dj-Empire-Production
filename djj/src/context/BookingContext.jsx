@@ -39,6 +39,7 @@ export const BookingProvider = ({ children }) => {
   );
   const [booking, setBookingState] = useState(() => getSessionData('booking', null));
   const [payment, setPaymentState] = useState(() => getSessionData('payment', null));
+  const [attendees, setAttendeesState] = useState(() => getSessionData('attendees', []));
 
   const setEvent = useCallback((val) => {
     setEventState(val);
@@ -84,6 +85,14 @@ export const BookingProvider = ({ children }) => {
     setSessionData('payment', val);
   }, []);
 
+  const setAttendees = useCallback((val) => {
+    setAttendeesState((prev) => {
+      const nextVal = typeof val === 'function' ? val(prev) : val;
+      setSessionData('attendees', nextVal);
+      return nextVal;
+    });
+  }, []);
+
   const resetBooking = useCallback(() => {
     setEventState(null);
     setSelectedTicketsState({});
@@ -92,7 +101,8 @@ export const BookingProvider = ({ children }) => {
     setCustomerDetailsState({ firstName: '', lastName: '', email: '', phone: '', notes: '' });
     setBookingState(null);
     setPaymentState(null);
-    ['event', 'selectedTickets', 'selectedSeats', 'reservation', 'customerDetails', 'booking', 'payment'].forEach((k) =>
+    setAttendeesState([]);
+    ['event', 'selectedTickets', 'selectedSeats', 'reservation', 'customerDetails', 'booking', 'payment', 'attendees'].forEach((k) =>
       setSessionData(k, null)
     );
   }, []);
@@ -114,6 +124,8 @@ export const BookingProvider = ({ children }) => {
         setBooking,
         payment,
         setPayment,
+        attendees,
+        setAttendees,
         resetBooking,
       }}
     >

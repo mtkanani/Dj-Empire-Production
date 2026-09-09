@@ -123,7 +123,7 @@ export default function PaymentsPage() {
             >
               <option value="" style={{ background: C.bgCard }}>All Gateways</option>
               <option value="RAZORPAY" style={{ background: C.bgCard }}>Razorpay</option>
-              <option value="PAYPAL" style={{ background: C.bgCard }}>PayPal</option>
+              <option value="CASH" style={{ background: C.bgCard }}>Cash</option>
               <option value="STRIPE" style={{ background: C.bgCard }}>Stripe</option>
               <option value="CASH" style={{ background: C.bgCard }}>Cash / Offline</option>
               <option value="BANK_TRANSFER" style={{ background: C.bgCard }}>Bank Transfer</option>

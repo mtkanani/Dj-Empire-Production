@@ -3,10 +3,17 @@ import { Calendar, Search, RefreshCw } from 'lucide-react';
 import { C } from '../../constants/theme.js';
 import { EventCard } from './EventCard.jsx';
 
+const gridStyle = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 260px), 1fr))',
+  gap: '24px',
+  width: '100%',
+};
+
 export const EventGrid = ({ events = [], loading = false, error = null, onRetry }) => {
   if (loading) {
     return (
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '24px', width: '100%' }}>
+      <div className="event-grid" style={gridStyle}>
         {[1, 2, 3, 4, 5, 6].map((idx) => (
           <div
             key={idx}
@@ -19,6 +26,11 @@ export const EventGrid = ({ events = [], loading = false, error = null, onRetry 
             }}
           />
         ))}
+        <style>{`
+          @media (max-width: 480px) {
+            .event-grid { gap: 16px !important; }
+          }
+        `}</style>
       </div>
     );
   }
@@ -79,10 +91,15 @@ export const EventGrid = ({ events = [], loading = false, error = null, onRetry 
   }
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '24px', width: '100%' }}>
+    <div className="event-grid" style={gridStyle}>
       {events.map((event) => (
         <EventCard key={event.id} event={event} />
       ))}
+      <style>{`
+        @media (max-width: 480px) {
+          .event-grid { gap: 16px !important; }
+        }
+      `}</style>
     </div>
   );
 };

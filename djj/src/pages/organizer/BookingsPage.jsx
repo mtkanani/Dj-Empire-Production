@@ -48,7 +48,13 @@ export default function BookingsPage() {
           limit: 10,
           eventId: selectedEventId || undefined,
           bookingStatus: bookingStatus || undefined,
-          paymentStatus: paymentStatus || undefined,
+          paymentGateway: ['CASH_PENDING', 'CASH_RECEIVED', 'CASH'].includes(paymentStatus) ? 'CASH' : undefined,
+          paymentStatus:
+            paymentStatus === 'CASH_PENDING'
+              ? 'Pending'
+              : paymentStatus === 'CASH_RECEIVED'
+              ? 'CASH_RECEIVED'
+              : paymentStatus || undefined,
           bookingNumber: search.trim() || undefined,
         };
 
@@ -72,7 +78,10 @@ export default function BookingsPage() {
   const totalBookingsCount = meta.total || bookings.length;
   const confirmedCount = bookings.filter((b) => b.bookingStatus === 'Confirmed').length;
   const pendingCount = bookings.filter((b) => b.bookingStatus === 'Pending').length;
-  const totalRevenue = bookings.reduce((acc, b) => acc + (b.paymentStatus === 'Paid' ? (b.totalAmount || 0) : 0), 0);
+  const totalRevenue = bookings.reduce(
+    (acc, b) => acc + (['Paid', 'CASH_RECEIVED', 'Captured'].includes(b.paymentStatus) ? b.totalAmount || 0 : 0),
+    0
+  );
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -175,6 +184,21 @@ export default function BookingsPage() {
           <option value="Pending">Pending</option>
           <option value="Cancelled">Cancelled</option>
           <option value="CheckedIn">Checked In</option>
+          <option value="AwaitingPayment">Awaiting Payment</option>
+        </select>
+        <select
+          value={paymentStatus}
+          onChange={(e) => {
+            setPaymentStatus(e.target.value);
+            setPage(1);
+          }}
+          style={{ padding: '9px 14px', background: 'rgba(255,255,255,0.03)', border: `1px solid ${C.border}`, borderRadius: '10px', color: C.text, fontSize: '13px', outline: 'none' }}
+        >
+          <option value="">All Payments</option>
+          <option value="CASH_PENDING">Cash Pending</option>
+          <option value="CASH_RECEIVED">Cash Received</option>
+          <option value="Paid">Paid</option>
+          <option value="Pending">Pending</option>
         </select>
       </div>
 
@@ -232,7 +256,7 @@ export default function BookingsPage() {
                       {formatCurrency(total, currency)}
                     </td>
                     <td style={{ padding: '16px 20px' }}>
-                      <PaymentStatusBadge status={b.paymentStatus || b.bookingStatus} />
+                      <PaymentStatusBadge status={b.displayPaymentStatus || b.paymentStatus || b.bookingStatus} gateway={b.paymentGateway} />
                     </td>
                     <td style={{ padding: '16px 20px', color: C.muted }}>
                       {formatDate(b.createdAt)}

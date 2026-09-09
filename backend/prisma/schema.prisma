@@ -119,12 +119,17 @@ enum BookingStatus {
 }
 
 // Payment Status Enum
+//
+// CASH_RECEIVED is a terminal paid state for offline cash settlement. It counts
+// as paid everywhere Paid does — see src/constants/paymentStatus.js, which is
+// the single source of truth for "does this booking count as paid".
 enum PaymentStatus {
   Pending
   Created
   Authorized
   Captured
   Paid
+  CASH_RECEIVED
   Failed
   Cancelled
   Expired
@@ -196,6 +201,8 @@ model User {
   auditLogs        AuditLog[]
   scannedCheckIns  CheckInLog[]      @relation("ScannerStaffLogs")
   createdScanners  ScannerAccount[]  @relation("OrganizerScanners")
+  identityDocuments IdentityDocument[]
+  cashVerifiedBookings Booking[]     @relation("CashVerifiedBookings")
 }
 
 // Event Organizer Profile (1-to-1 with User)
@@ -532,6 +539,9 @@ model ReservationLock {
 model Booking {
   id                String        @id @default(auto()) @map("_id") @db.ObjectId
   bookingNumber     String        @unique
+  // Pre-rebrand booking reference (BMS-*), retained so customers holding older
+  // tickets and emails can still be found by staff search.
+  legacyBookingNumber String?
   customerId        String        @db.ObjectId
   customer          User          @relation("CustomerBookings", fields: [customerId], references: [id], onDelete: Cascade)
   eventId           String        @db.ObjectId
@@ -558,16 +568,80 @@ model Booking {
   notes             String?
   ticketEmailSentAt DateTime?
   ticketEmailError  String?
+
+  // Chosen settlement route, denormalised from Payment so the admin booking
+  // list can filter by method without joining every payment row.
+  paymentGateway    PaymentGateway?
+
+  // Cash settlement audit trail. Written only by CashVerificationService when an
+  // authorised SUPER_ADMIN / EVENT_ORGANIZER confirms physical receipt.
+  cashVerifiedAt     DateTime?
+  cashVerifiedById   String?       @db.ObjectId
+  cashVerifiedBy     User?         @relation("CashVerifiedBookings", fields: [cashVerifiedById], references: [id])
+  cashVerifierRole   Role?
+  cashAmountReceived Float?
+
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 
   items       BookingItem[]
   tickets     Ticket[]
+  attendees   BookingAttendee[]
   seats       SeatMap[]     @relation("BookingSeats")
   payments    Payment[]
   refunds     Refund[]
   invoices    Invoice[]
   checkInLogs CheckInLog[]
+
+  @@index([legacyBookingNumber])
+  @@index([paymentGateway, paymentStatus])
+}
+
+// Per-Ticket Attendee Identity Model
+//
+// One row per ticket in a booking: attendees.length always equals
+// Booking.quantity, enforced in booking validation and again in BookingService.
+model BookingAttendee {
+  id                 String            @id @default(auto()) @map("_id") @db.ObjectId
+  bookingId          String            @db.ObjectId
+  booking            Booking           @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  attendeeIndex      Int
+  fullName           String
+  mobileNumber       String
+  identityDocumentId String?           @db.ObjectId
+  identityDocument   IdentityDocument? @relation(fields: [identityDocumentId], references: [id])
+  // Bound to exactly one issued Ticket at confirmation time so each pass carries
+  // the right attendee's name instead of the purchaser's.
+  ticketId           String?           @db.ObjectId
+  ticket             Ticket?           @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  @@unique([bookingId, attendeeIndex])
+  @@index([ticketId])
+  @@index([mobileNumber])
+}
+
+// Private Identity Document Reference Model
+//
+// Holds only the opaque object key in private R2 storage plus the metadata
+// needed to validate and serve it. The image itself never touches this database
+// and the key is never returned to non-staff callers.
+model IdentityDocument {
+  id               String            @id @default(auto()) @map("_id") @db.ObjectId
+  objectKey        String            @unique
+  uploadedByUserId String            @db.ObjectId
+  uploadedBy       User              @relation(fields: [uploadedByUserId], references: [id], onDelete: Cascade)
+  mimeType         String
+  sizeBytes        Int
+  // Set once the document is attached to a booking. Unconsumed rows are swept.
+  consumed         Boolean           @default(false)
+  consumedAt       DateTime?
+  createdAt        DateTime          @default(now())
+  attendees        BookingAttendee[]
+
+  @@index([uploadedByUserId, consumed])
+  @@index([consumed, createdAt])
 }
 
 // Multi-Ticket Booking Item Model
@@ -703,6 +777,10 @@ model Ticket {
   updatedAt    DateTime     @updatedAt
 
   seats        SeatMap[]    @relation("TicketSeats")
+  // Modelled as a list rather than 1:1 because a unique index on the mostly-null
+  // BookingAttendee.ticketId would collide on MongoDB. The 1:1 pairing is
+  // enforced when tickets are issued.
+  attendees    BookingAttendee[]
 }
 
 // Audit Log Model

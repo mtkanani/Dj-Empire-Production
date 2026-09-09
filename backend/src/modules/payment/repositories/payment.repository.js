@@ -30,7 +30,7 @@ export class PaymentRepository {
         serviceCharge: data.serviceCharge || 0.0,
         totalAmount: data.totalAmount,
         paymentMethod: data.paymentMethod || 'CARD',
-        paymentStatus: PaymentStatus.Created,
+        paymentStatus: data.paymentStatus || PaymentStatus.Created,
         paymentType: 'SALE',
       },
     });
@@ -115,7 +115,9 @@ export class PaymentRepository {
     if (gatewayTransactionId) data.gatewayTransactionId = gatewayTransactionId;
     if (paidAmount !== undefined) data.paidAmount = paidAmount;
     if (gatewayResponse) data.gatewayResponse = JSON.stringify(gatewayResponse);
-    if (paymentStatus === PaymentStatus.Paid) data.paymentDate = new Date();
+    if (paymentStatus === PaymentStatus.Paid || paymentStatus === PaymentStatus.CASH_RECEIVED) {
+      data.paymentDate = new Date();
+    }
 
     return prisma.payment.update({
       where: { id },

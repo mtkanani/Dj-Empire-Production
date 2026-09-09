@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, User, Mail, Phone, Lock, AlertCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, AlertCircle, Upload, User } from 'lucide-react';
 import { C } from '../../constants/theme.js';
-import { customerBookingService } from '../../services/customer/customerBookingService.js';
 import { CustomerNavbar } from '../../components/customer/CustomerNavbar.jsx';
 import { Footer } from '../../components/Layout.jsx';
 import { BookingStepper } from '../../components/customer/booking/BookingStepper.jsx';
@@ -12,31 +11,40 @@ import { useBooking } from '../../context/BookingContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useToast } from '../../hooks/useToast.js';
 import { validatePhone } from '../../utils/validation.js';
+import { identityDocumentService } from '../../services/customer/identityDocumentService.js';
+
+const IDENTITY_OPTIONAL = import.meta.env.DEV;
+
+const emptyAttendee = (index, user) => ({
+  fullName: index === 0 ? `${user?.firstName || ''} ${user?.lastName || ''}`.trim() : '',
+  mobileNumber: index === 0 ? user?.phone || '' : '',
+  identityDocumentId: '',
+  fileName: '',
+});
 
 export default function CustomerDetailsPage() {
   const { eventId } = useParams();
   const navigate = useNavigate();
   const { showToast } = useToast();
   const { user } = useAuth();
-  const { event, selectedTickets, reservation, setCustomerDetails, setBooking } = useBooking();
+  const { event, selectedTickets, reservation, attendees, setAttendees, setCustomerDetails } = useBooking();
 
-  const [firstName, setFirstName] = useState(user?.firstName || '');
-  const [lastName, setLastName] = useState(user?.lastName || '');
-  const [email, setEmail] = useState(user?.email || '');
-  const [phone, setPhone] = useState(user?.phone || '');
-  const [notes, setNotes] = useState('');
+  const totalQty = useMemo(
+    () => Object.values(selectedTickets || {}).reduce((acc, it) => acc + (it.quantity || 0), 0) || 1,
+    [selectedTickets]
+  );
 
-  const [creatingBooking, setCreatingBooking] = useState(false);
+  const [rows, setRows] = useState(() =>
+    Array.from({ length: totalQty }, (_, i) => attendees[i] || emptyAttendee(i, user))
+  );
+  const [uploadingIndex, setUploadingIndex] = useState(null);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (user) {
-      if (!firstName && user.firstName) setFirstName(user.firstName);
-      if (!lastName && user.lastName) setLastName(user.lastName);
-      if (!email && user.email) setEmail(user.email);
-      if (!phone && user.phone) setPhone(user.phone);
-    }
-  }, [user]);
+    setRows((prev) =>
+      Array.from({ length: totalQty }, (_, i) => prev[i] || attendees[i] || emptyAttendee(i, user))
+    );
+  }, [totalQty]);
 
   const selectedItemsArray = Object.values(selectedTickets || {}).map((it) => ({
     ticketTypeId: it.ticketType?.id || it.ticketTypeId,
@@ -51,217 +59,145 @@ export default function CustomerDetailsPage() {
     navigate(`/events/${eventId}/book`);
   };
 
-  const handleCreateBookingSubmit = async (e) => {
-    e.preventDefault();
-    if (!firstName.trim() || !email.trim()) {
-      setError('First name and email are required for booking confirmation.');
+  const updateRow = (index, patch) => {
+    setRows((prev) => prev.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+  };
+
+  const handleUpload = async (index, file) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setError('Identity document must be a JPEG, PNG, or WebP image');
       return;
     }
-
-    const phoneErr = validatePhone(phone);
-    if (phoneErr) {
-      setError(phoneErr);
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Identity document must be 5 MB or smaller');
       return;
     }
-
-    if (reservation?.expiresAt && new Date(reservation.expiresAt) <= new Date()) {
-      showToast('Your 15-minute ticket lock has expired. Please select your tickets again.', 'error');
-      setError('Your 15-minute ticket lock has expired. Please select your tickets again.');
-      navigate(`/events/${eventId}/book`);
-      return;
-    }
-
-    setCreatingBooking(true);
+    setUploadingIndex(index);
     setError(null);
     try {
-      const isValidHex24 = (str) => typeof str === 'string' && /^[0-9a-fA-F]{24}$/.test(str);
-
-      const primaryTicketId = isValidHex24(selectedItemsArray[0]?.ticketTypeId)
-        ? selectedItemsArray[0].ticketTypeId
-        : isValidHex24(reservation?.ticketTypeId)
-        ? reservation.ticketTypeId
-        : undefined;
-
-      const primarySectionId = isValidHex24(selectedItemsArray[0]?.sectionId)
-        ? selectedItemsArray[0].sectionId
-        : isValidHex24(reservation?.sectionId)
-        ? reservation.sectionId
-        : undefined;
-
-      const totalQty = selectedItemsArray.reduce((acc, i) => acc + (i.quantity || 0), 0) || reservation?.lockedQuantity || 1;
-
-      const validItems = selectedItemsArray
-        .filter((it) => isValidHex24(it.ticketTypeId))
-        .map((it) => ({
-          ticketTypeId: it.ticketTypeId,
-          sectionId: isValidHex24(it.sectionId) ? it.sectionId : undefined,
-          quantity: it.quantity,
-          unitPrice: it.price || 0,
-        }));
-
-      const payload = {
-        eventId,
-        ticketTypeId: primaryTicketId,
-        sectionId: primarySectionId,
-        quantity: totalQty,
-        items: validItems.length > 0 ? validItems : undefined,
-        reservationNumber: reservation?.reservationNumber || reservation?.id || undefined,
-        notes: notes.trim() || undefined,
-      };
-
-      const res = await customerBookingService.createBooking(payload);
-      const bookingData = res.data || res;
-
-      setCustomerDetails({ firstName, lastName, email, phone, notes });
-      setBooking(bookingData);
-
-      showToast('Booking order created successfully!', 'success');
-      navigate(`/events/${eventId}/booking/summary`);
+      const res = await identityDocumentService.upload(file);
+      const data = res.data || res;
+      updateRow(index, { identityDocumentId: data.id, fileName: file.name });
     } catch (err) {
-      const errMsg = err.message || 'Failed to create booking order.';
-      setError(errMsg);
-      showToast(errMsg, 'error');
-
-      if (errMsg.toLowerCase().includes('expired')) {
-        setTimeout(() => {
-          navigate(`/events/${eventId}/book`);
-        }, 1500);
-      }
+      setError(err.message || 'Failed to upload identity document');
     } finally {
-      setCreatingBooking(false);
+      setUploadingIndex(null);
     }
   };
 
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (reservation?.expiresAt && new Date(reservation.expiresAt) <= new Date()) {
+      handleReservationExpired();
+      return;
+    }
+    if (rows.length !== totalQty) {
+      setError(`Enter details for all ${totalQty} attendees`);
+      return;
+    }
+    for (let i = 0; i < rows.length; i += 1) {
+      const row = rows[i];
+      if (!row.fullName?.trim() || row.fullName.trim().length < 2) {
+        setError(`Attendee ${i + 1}: full name is required`);
+        return;
+      }
+      const phoneErr = validatePhone(row.mobileNumber);
+      if (phoneErr) {
+        setError(`Attendee ${i + 1}: ${phoneErr}`);
+        return;
+      }
+      if (!IDENTITY_OPTIONAL && !row.identityDocumentId) {
+        setError(`Attendee ${i + 1}: identity document photo is required`);
+        return;
+      }
+    }
+
+    setAttendees(rows);
+    setCustomerDetails({
+      firstName: rows[0]?.fullName?.split(' ')[0] || user?.firstName || '',
+      lastName: rows[0]?.fullName?.split(' ').slice(1).join(' ') || user?.lastName || '',
+      email: user?.email || '',
+      phone: rows[0]?.mobileNumber || user?.phone || '',
+      notes: '',
+    });
+    navigate(`/events/${eventId}/booking/summary`);
+  };
 
   return (
     <div style={{ minHeight: '100vh', background: C.bgMain, color: C.text, display: 'flex', flexDirection: 'column' }}>
       <CustomerNavbar />
-
       <main style={{ flexGrow: 1, maxWidth: '1100px', width: '100%', margin: '0 auto', padding: '40px 24px', display: 'flex', flexDirection: 'column', gap: '30px' }}>
         <BookingStepper currentStep={2} />
-
-        {/* Header Bar */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <button
-            onClick={() => navigate(`/events/${eventId}/book`)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              background: C.bgCard,
-              border: `1px solid ${C.border}`,
-              borderRadius: '10px',
-              color: C.text,
-              padding: '8px 14px',
-              fontSize: '13px',
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
-          >
-            <ArrowLeft size={16} /> Back to Ticket Selection
-          </button>
-        </div>
-
-        {/* 15-Minute Reservation Expiration Timer */}
-        {reservation && (
-          <ReservationTimer expiresAt={reservation.expiresAt} onExpire={handleReservationExpired} />
-        )}
-
-        {/* Global Error Banner */}
+        <button
+          onClick={() => navigate(`/events/${eventId}/book`)}
+          style={{ width: 'fit-content', display: 'flex', alignItems: 'center', gap: '6px', background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: '10px', color: C.text, padding: '8px 14px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
+        >
+          <ArrowLeft size={16} /> Back to Ticket Selection
+        </button>
+        {reservation && <ReservationTimer expiresAt={reservation.expiresAt} onExpire={handleReservationExpired} />}
         {error && (
           <div style={{ padding: '14px 18px', background: C.redDim, border: `1px solid ${C.red}`, borderRadius: '14px', color: C.red, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '10px' }}>
             <AlertCircle size={18} /> {error}
           </div>
         )}
-
-        {/* 2-Column Layout: Left (Customer Form), Right (Order Summary) */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '30px' }}>
-          {/* Left Attendee Form */}
-          <form onSubmit={handleCreateBookingSubmit} style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: '20px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <h3 style={{ margin: 0, fontFamily: 'Space Grotesk, sans-serif', fontSize: '18px', color: C.text }}>
-              Attendee & Ticket Holder Details
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <h3 style={{ margin: 0, fontFamily: 'Space Grotesk, sans-serif', fontSize: '18px' }}>
+              Attendee details ({totalQty} ticket{totalQty > 1 ? 's' : ''})
             </h3>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-              <div>
-                <label style={{ display: 'block', color: C.muted, fontSize: '12px', marginBottom: '6px', fontWeight: 600 }}>First Name *</label>
+            <p style={{ margin: 0, color: C.muted, fontSize: '13px' }}>
+              {IDENTITY_OPTIONAL
+                ? 'Enter information for every person attending. Name and mobile are required. Identity-document photo is optional while testing locally.'
+                : 'Enter information for every person attending. Each ticket needs its own name, mobile number, and identity-document photo.'}
+            </p>
+            {rows.map((row, index) => (
+              <div key={index} style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: '20px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <strong style={{ color: C.gold, fontFamily: 'Space Grotesk, sans-serif' }}>
+                  <User size={14} style={{ marginRight: 6 }} /> Attendee {index + 1}
+                </strong>
+                <label style={{ color: C.muted, fontSize: '12px', fontWeight: 600 }}>Full Name *</label>
                 <input
-                  type="text"
                   required
-                  value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
-                  placeholder="e.g. John"
+                  value={row.fullName}
+                  onChange={(e) => updateRow(index, { fullName: e.target.value })}
                   style={{ width: '100%', padding: '10px 14px', background: 'rgba(255,255,255,0.03)', border: `1px solid ${C.border}`, borderRadius: '10px', color: C.text, fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
                 />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', color: C.muted, fontSize: '12px', marginBottom: '6px', fontWeight: 600 }}>Last Name</label>
+                <label style={{ color: C.muted, fontSize: '12px', fontWeight: 600 }}>Mobile Number *</label>
                 <input
-                  type="text"
-                  value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
-                  placeholder="e.g. Doe"
+                  required
+                  type="tel"
+                  value={row.mobileNumber}
+                  onChange={(e) => updateRow(index, { mobileNumber: e.target.value })}
+                  placeholder="e.g. 9876543210"
                   style={{ width: '100%', padding: '10px 14px', background: 'rgba(255,255,255,0.03)', border: `1px solid ${C.border}`, borderRadius: '10px', color: C.text, fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
                 />
+                <label style={{ color: C.muted, fontSize: '12px', fontWeight: 600 }}>
+                  Identity Document {IDENTITY_OPTIONAL ? '(optional for testing)' : '* (photo)'}
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px', borderRadius: '12px', border: `1px dashed ${C.borderGold}`, cursor: 'pointer', color: C.gold }}>
+                  <Upload size={16} />
+                  {uploadingIndex === index ? 'Uploading…' : row.fileName || 'Upload ID Photo'}
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    hidden
+                    onChange={(e) => handleUpload(index, e.target.files?.[0])}
+                  />
+                </label>
               </div>
-            </div>
-
-            <div>
-              <label style={{ display: 'block', color: C.muted, fontSize: '12px', marginBottom: '6px', fontWeight: 600 }}>Email Address (for ticket receipt) *</label>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="e.g. john@example.com"
-                style={{ width: '100%', padding: '10px 14px', background: 'rgba(255,255,255,0.03)', border: `1px solid ${C.border}`, borderRadius: '10px', color: C.text, fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
-              />
-            </div>
-
-            <div>
-              <label style={{ display: 'block', color: C.muted, fontSize: '12px', marginBottom: '6px', fontWeight: 600 }}>Mobile Phone Number *</label>
-              <input
-                type="tel"
-                required
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="e.g. +91 9876543210"
-                style={{ width: '100%', padding: '10px 14px', background: 'rgba(255,255,255,0.03)', border: `1px solid ${C.border}`, borderRadius: '10px', color: C.text, fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
-              />
-            </div>
-
+            ))}
             <button
               type="submit"
-              disabled={creatingBooking}
-              style={{
-                marginTop: '10px',
-                padding: '14px',
-                background: C.gold,
-                color: '#000000',
-                border: 'none',
-                borderRadius: '14px',
-                fontSize: '15px',
-                fontWeight: 800,
-                fontFamily: 'Space Grotesk, sans-serif',
-                cursor: creatingBooking ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-              }}
+              disabled={uploadingIndex !== null}
+              style={{ padding: '14px', background: C.gold, color: '#000', border: 'none', borderRadius: '14px', fontSize: '15px', fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
             >
-              {creatingBooking ? 'Creating Order...' : 'Proceed to Order Summary'} <ArrowRight size={16} />
+              Proceed to Order Summary <ArrowRight size={16} />
             </button>
           </form>
-
-          {/* Right Summary Sidebar */}
-          <div>
-            <OrderSummaryCard event={event} items={selectedItemsArray} />
-          </div>
+          <OrderSummaryCard event={event} items={selectedItemsArray} />
         </div>
       </main>
-
       <Footer />
     </div>
   );

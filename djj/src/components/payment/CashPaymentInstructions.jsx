@@ -24,7 +24,7 @@ export const CashPaymentInstructions = ({ bookingNumber = '' }) => {
       </div>
 
       <p style={{ margin: 0, color: C.text, lineHeight: 1.5 }}>
-        Your tickets are reserved under <strong>Awaiting Cash Payment</strong> status. Please pay cash at the event entrance or organizer ticket booth before entering.
+        Your booking stays pending until an authorised administrator or organizer confirms the cash payment. It does not expire automatically. Pay cash at the event entrance or organizer ticket booth and show your Booking ID.
       </p>
 
       <div style={{ background: C.bgCard, padding: '14px', borderRadius: '12px', border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>

@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { env } from '../../../config/env.js';
+import { timingSafeEqualHex } from '../../../utils/timingSafeCompare.util.js';
 
 /**
  * Cryptographic HMAC-SHA256 Signed QR Payload Utility
@@ -9,9 +10,6 @@ export class QrCryptoUtil {
     return env.JWT_ACCESS_SECRET || 'secret-key-12345';
   }
 
-  /**
-   * Encrypt & Sign Ticket QR Payload
-   */
   static createSignedQrToken(payload) {
     const nonce = crypto.randomBytes(8).toString('hex');
     const timestamp = Date.now();
@@ -40,9 +38,10 @@ export class QrCryptoUtil {
   }
 
   /**
-   * Verify & Decrypt Ticket QR Token
+   * @param {string} tokenString
+   * @param {{ requiredPurpose?: string, maxAgeMs?: number }} [options]
    */
-  static verifyQrToken(tokenString) {
+  static verifyQrToken(tokenString, options = {}) {
     try {
       const decodedJson = Buffer.from(tokenString, 'base64').toString('utf8');
       const payload = JSON.parse(decodedJson);
@@ -58,8 +57,18 @@ export class QrCryptoUtil {
         .update(JSON.stringify(dataToSign))
         .digest('hex');
 
-      if (signature !== expectedSignature) {
+      if (!timingSafeEqualHex(signature, expectedSignature)) {
         return { valid: false, reason: 'Invalid or modified QR token signature' };
+      }
+
+      if (options.requiredPurpose && dataToSign.purpose !== options.requiredPurpose) {
+        return { valid: false, reason: 'QR token is not valid for this operation' };
+      }
+
+      if (options.maxAgeMs && typeof dataToSign.timestamp === 'number') {
+        if (Date.now() - dataToSign.timestamp > options.maxAgeMs) {
+          return { valid: false, reason: 'QR token has expired' };
+        }
       }
 
       return {

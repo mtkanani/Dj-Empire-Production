@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Users, Building, Calendar, Ticket, ShieldAlert,
-  CheckCircle2, RefreshCw, Filter
+  CheckCircle2, RefreshCw, Filter, Banknote
 } from 'lucide-react';
 import { C } from '../../constants/theme.js';
 import { StatCard } from '../../components/admin/StatCard.jsx';
@@ -27,6 +27,7 @@ const EMPTY_METRICS = {
   publishedEvents: 0,
   totalBookings: 0,
   pendingApprovals: 0,
+  cashPayments: { pendingCash: 0, cashReceived: 0, cashRevenue: 0 },
 };
 
 function unwrapMetrics(res) {
@@ -42,6 +43,11 @@ function unwrapMetrics(res) {
     totalBookings: Number(src.totalBookings) || 0,
     pendingApprovals: Number(src.pendingApprovals) || 0,
     pendingEvents: Array.isArray(src.pendingEvents) ? src.pendingEvents : [],
+    cashPayments: {
+      pendingCash: Number(src.cashPayments?.pendingCash) || 0,
+      cashReceived: Number(src.cashPayments?.cashReceived) || 0,
+      cashRevenue: Number(src.cashPayments?.cashRevenue) || 0,
+    },
   };
 }
 
@@ -160,6 +166,28 @@ export default function AdminDashboard() {
           loading={loading}
           accentColor={C.amber}
           onClick={() => navigate('/admin/events?status=PendingApproval')}
+        />
+        <StatCard
+          title="Pending Cash"
+          value={metrics.cashPayments?.pendingCash || 0}
+          icon={Banknote}
+          loading={loading}
+          accentColor={C.gold}
+          onClick={() => navigate('/admin/cash-verify')}
+        />
+        <StatCard
+          title="Cash Received"
+          value={metrics.cashPayments?.cashReceived || 0}
+          icon={Banknote}
+          loading={loading}
+          accentColor={C.green}
+        />
+        <StatCard
+          title="Cash Revenue"
+          value={`₹${Number(metrics.cashPayments?.cashRevenue || 0).toLocaleString('en-IN')}`}
+          icon={Ticket}
+          loading={loading}
+          accentColor={C.gold}
         />
       </div>
 

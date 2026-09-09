@@ -13,37 +13,49 @@ export class BookingRepository {
   /**
    * Create Booking record with Booking Items
    */
-  static async createBooking(data, items = []) {
+  static async createBooking(data, items = [], attendees = []) {
     const reservationRef = data.reservationNumber || data.reservationId;
-    const bookingNumber = generateBookingNumber();
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 mins payment window
+    const isCash = data.paymentGateway === 'CASH';
+    // Cash holds until an organiser/admin verifies payment. Online checkout still
+    // uses a 15-minute unpaid window.
+    const expiresAt = isCash ? null : new Date(Date.now() + 15 * 60 * 1000);
 
-    const booking = await prisma.booking.create({
-      data: {
-        bookingNumber,
-        customerId: data.customerId,
-        eventId: data.eventId,
-        scheduleId: isValidObjectId(data.scheduleId) ? data.scheduleId : null,
-        sectionId: isValidObjectId(data.sectionId) ? data.sectionId : null,
-        ticketTypeId: isValidObjectId(data.ticketTypeId) ? data.ticketTypeId : null,
-        quantity: data.quantity,
-        currency: data.currency || 'INR',
-        subtotal: data.subtotal,
-        discount: data.discount || 0.0,
-        couponDiscount: data.couponDiscount || 0.0,
-        platformFee: data.platformFee || 0.0,
-        bookingFee: data.bookingFee || 0.0,
-        serviceCharge: data.serviceCharge || 0.0,
-        gstAmount: data.gstAmount || 0.0,
-        totalAmount: data.totalAmount,
-        paymentStatus: PaymentStatus.Pending,
-        bookingStatus: BookingStatus.Reserved,
-        reservationStatus: reservationRef ? 'HELD' : 'ACTIVE',
-        bookingSource: data.bookingSource || 'WEB',
-        expiresAt,
-        notes: data.notes || null,
-      },
-    });
+    let booking = null;
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      try {
+        booking = await prisma.booking.create({
+          data: {
+            bookingNumber: generateBookingNumber(),
+            customerId: data.customerId,
+            eventId: data.eventId,
+            scheduleId: isValidObjectId(data.scheduleId) ? data.scheduleId : null,
+            sectionId: isValidObjectId(data.sectionId) ? data.sectionId : null,
+            ticketTypeId: isValidObjectId(data.ticketTypeId) ? data.ticketTypeId : null,
+            quantity: data.quantity,
+            currency: data.currency || 'INR',
+            subtotal: data.subtotal,
+            discount: data.discount || 0.0,
+            couponDiscount: data.couponDiscount || 0.0,
+            platformFee: data.platformFee || 0.0,
+            bookingFee: data.bookingFee || 0.0,
+            serviceCharge: data.serviceCharge || 0.0,
+            gstAmount: data.gstAmount || 0.0,
+            totalAmount: data.totalAmount,
+            paymentStatus: PaymentStatus.Pending,
+            bookingStatus: isCash ? BookingStatus.AwaitingPayment : BookingStatus.Reserved,
+            paymentGateway: data.paymentGateway || null,
+            reservationStatus: reservationRef ? 'HELD' : 'ACTIVE',
+            bookingSource: data.bookingSource || 'WEB',
+            expiresAt,
+            notes: data.notes || null,
+          },
+        });
+        break;
+      } catch (err) {
+        if (err.code === 'P2002' && attempt < 5) continue;
+        throw err;
+      }
+    }
 
     // Create Booking Items if provided
     const validItems = items
@@ -81,13 +93,25 @@ export class BookingRepository {
       }
     }
 
+    if (Array.isArray(attendees) && attendees.length > 0) {
+      await prisma.bookingAttendee.createMany({
+        data: attendees.map((attendee, index) => ({
+          bookingId: booking.id,
+          attendeeIndex: Number.isInteger(attendee.attendeeIndex) ? attendee.attendeeIndex : index,
+          fullName: attendee.fullName,
+          mobileNumber: attendee.mobileNumber,
+          identityDocumentId: attendee.identityDocumentId || null,
+        })),
+      });
+    }
+
     return this.findById(booking.id);
   }
 
   /**
    * Confirm Booking, issue individual Tickets & update section sold count
    */
-  static async confirmBooking(bookingId, transactionId) {
+  static async confirmBooking(bookingId, transactionId, { paymentStatus = PaymentStatus.Paid } = {}) {
     const booking = await this.findById(bookingId);
     if (!booking) return null;
 
@@ -95,7 +119,7 @@ export class BookingRepository {
       where: { id: bookingId },
       data: {
         bookingStatus: BookingStatus.Confirmed,
-        paymentStatus: PaymentStatus.Paid,
+        paymentStatus,
         reservationStatus: 'FULFILLED',
       },
     });
@@ -163,6 +187,25 @@ export class BookingRepository {
               data: { ticketId: tck.id },
             });
           }
+        })
+      );
+
+      const issuedTickets = await prisma.ticket.findMany({
+        where: { bookingId: booking.id },
+        orderBy: { createdAt: 'asc' },
+      });
+      const attendeesToLink = await prisma.bookingAttendee.findMany({
+        where: { bookingId: booking.id },
+        orderBy: { attendeeIndex: 'asc' },
+      });
+      await Promise.all(
+        attendeesToLink.map((attendee, index) => {
+          const ticket = issuedTickets[index];
+          if (!ticket) return null;
+          return prisma.bookingAttendee.update({
+            where: { id: attendee.id },
+            data: { ticketId: ticket.id },
+          });
         })
       );
     }
@@ -280,11 +323,14 @@ export class BookingRepository {
    * Find Booking by ID or Booking Number
    */
   static async findById(idOrBookingNumber) {
+    const ref = String(idOrBookingNumber || '').trim();
     let whereClause;
-    if (idOrBookingNumber.match(/^[0-9a-fA-F]{24}$/)) {
-      whereClause = { id: idOrBookingNumber };
+    if (/^[0-9a-fA-F]{24}$/.test(ref)) {
+      whereClause = { id: ref };
     } else {
-      whereClause = { bookingNumber: idOrBookingNumber };
+      whereClause = {
+        OR: [{ bookingNumber: ref }, { legacyBookingNumber: ref }],
+      };
     }
 
     return prisma.booking.findFirst({
@@ -316,7 +362,14 @@ export class BookingRepository {
           include: { ticketType: true, section: true },
         },
         tickets: {
-          include: { ticketType: true, seats: true },
+          include: { ticketType: true, seats: true, attendees: true },
+        },
+        attendees: {
+          orderBy: { attendeeIndex: 'asc' },
+        },
+        payments: true,
+        cashVerifiedBy: {
+          select: { id: true, firstName: true, lastName: true, email: true, role: true },
         },
       },
     });
@@ -336,6 +389,7 @@ export class BookingRepository {
       eventId,
       bookingStatus,
       paymentStatus,
+      paymentGateway,
       bookingNumber,
     } = params;
 
@@ -348,7 +402,13 @@ export class BookingRepository {
     if (eventId) whereClause.eventId = eventId;
     if (bookingStatus) whereClause.bookingStatus = bookingStatus;
     if (paymentStatus) whereClause.paymentStatus = paymentStatus;
-    if (bookingNumber) whereClause.bookingNumber = { contains: bookingNumber, mode: 'insensitive' };
+    if (paymentGateway) whereClause.paymentGateway = paymentGateway;
+    if (bookingNumber) {
+      whereClause.OR = [
+        { bookingNumber: { contains: bookingNumber } },
+        { legacyBookingNumber: { contains: bookingNumber } },
+      ];
+    }
 
     if (organizerId) {
       whereClause.event = { organizerId };
@@ -374,6 +434,9 @@ export class BookingRepository {
           },
           tickets: {
             include: { ticketType: true, seats: true },
+          },
+          attendees: {
+            orderBy: { attendeeIndex: 'asc' },
           },
         },
         orderBy: { [sortBy]: sortOrder.toLowerCase() === 'asc' ? 'asc' : 'desc' },

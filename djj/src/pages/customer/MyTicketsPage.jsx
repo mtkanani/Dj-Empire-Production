@@ -7,9 +7,11 @@ import { CustomerNavbar } from '../../components/customer/CustomerNavbar.jsx';
 import { Footer } from '../../components/Layout.jsx';
 import { DigitalTicketCard } from '../../components/ticket/DigitalTicketCard.jsx';
 import { TicketActions } from '../../components/ticket/TicketActions.jsx';
+import { PaymentMethodChip } from '../../components/payment/PaymentMethodChip.jsx';
 import { getBookingTickets } from '../../utils/ticketUtils.js';
 import { getEventBannerUrl } from '../../utils/eventImage.js';
 import { getPrimarySchedule, formatEventDate, formatEventTimeRange } from '../../utils/eventSchedule.js';
+import { isCashPendingBooking, shouldShowInMyTickets } from '../../utils/paymentBooking.js';
 
 export default function MyTicketsPage() {
   const navigate = useNavigate();
@@ -17,6 +19,7 @@ export default function MyTicketsPage() {
   const [bookings, setBookings] = useState([]);
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [selectedTicketIndex, setSelectedTicketIndex] = useState(0);
+  const [cashQrUrl, setCashQrUrl] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -28,7 +31,7 @@ export default function MyTicketsPage() {
         const res = await customerBookingService.getMyBookings({ limit: 100 });
         const resData = res.data || res;
         const list = Array.isArray(resData) ? resData : resData.bookings || [];
-        setBookings(list);
+        setBookings(list.filter((b) => shouldShowInMyTickets(b)));
       } catch (err) {
         setError(err.message || 'Unable to load your digital tickets.');
       } finally {
@@ -38,6 +41,27 @@ export default function MyTicketsPage() {
 
     fetchTickets();
   }, []);
+
+  useEffect(() => {
+    let objectUrl = null;
+    const loadCashQr = async () => {
+      if (!selectedBooking || !isCashPendingBooking(selectedBooking)) {
+        setCashQrUrl(null);
+        return;
+      }
+      try {
+        const qr = await customerBookingService.getCashVerificationQr(selectedBooking.id);
+        objectUrl = URL.createObjectURL(qr.blob || qr);
+        setCashQrUrl(objectUrl);
+      } catch {
+        setCashQrUrl(null);
+      }
+    };
+    loadCashQr();
+    return () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [selectedBooking]);
 
   return (
     <div style={{ minHeight: '100vh', background: C.bgMain, color: C.text, display: 'flex', flexDirection: 'column' }}>
@@ -50,16 +74,18 @@ export default function MyTicketsPage() {
             <Ticket size={28} color={C.gold} /> My Digital Entry Passes
           </h1>
           <p style={{ margin: '6px 0 0', color: C.muted, fontSize: '14px' }}>
-            Access your active event entry passes, gate check-in status, and cryptographic entrance QR codes
+          Access pending cash holds and confirmed entry passes. Pending cash is not valid at the gate until an organiser or admin confirms payment.
           </p>
         </div>
 
         {/* Modal / Preview of Selected Digital Ticket Pass */}
         {selectedBooking && (() => {
+          const pendingCash = isCashPendingBooking(selectedBooking);
           const tickets = getBookingTickets(selectedBooking);
-          const currentTicket = tickets[selectedTicketIndex] || tickets[0];
+          const currentTicket = tickets[selectedTicketIndex] || tickets[0] || null;
           const canPrev = selectedTicketIndex > 0;
           const canNext = selectedTicketIndex < tickets.length - 1;
+          const passTotal = tickets.length || selectedBooking.quantity || 1;
 
           return (
           <div
@@ -84,7 +110,7 @@ export default function MyTicketsPage() {
               {/* Top Modal Close Header */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ color: C.gold, fontSize: '13px', fontWeight: 800, fontFamily: 'Space Grotesk, monospace', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <ShieldCheck size={16} /> QR Entrance Pass {tickets.length > 1 ? `${selectedTicketIndex + 1} of ${tickets.length}` : 'Details'}
+                  <ShieldCheck size={16} /> {pendingCash ? 'Pending Cash Hold' : `QR Entrance Pass ${tickets.length > 1 ? `${selectedTicketIndex + 1} of ${tickets.length}` : 'Details'}`}
                 </span>
                 <button
                   onClick={() => setSelectedBooking(null)}
@@ -159,11 +185,12 @@ export default function MyTicketsPage() {
                 booking={selectedBooking}
                 ticket={currentTicket}
                 customer={selectedBooking.customer}
-                ticketIndex={selectedTicketIndex + 1}
-                ticketTotal={tickets.length}
+                ticketIndex={pendingCash ? 1 : selectedTicketIndex + 1}
+                ticketTotal={passTotal}
+                qrCodeUrl={pendingCash ? cashQrUrl : null}
               />
 
-              <TicketActions bookingId={selectedBooking.id} />
+              {!pendingCash && <TicketActions bookingId={selectedBooking.id} />}
 
               <button
                 onClick={() => setSelectedBooking(null)}
@@ -204,7 +231,7 @@ export default function MyTicketsPage() {
               No Active Digital Tickets Found
             </h3>
             <p style={{ margin: 0, color: C.muted, fontSize: '14px', maxWidth: '400px' }}>
-              You don't have any confirmed ticket passes yet. Discover live concerts and book your tickets!
+              You don't have any pending or confirmed tickets yet. Discover live concerts and book your tickets!
             </p>
             <button
               onClick={() => navigate('/events')}
@@ -252,6 +279,7 @@ export default function MyTicketsPage() {
                 const sectionName = firstItem?.section?.name || booking.section?.name || 'General Admission';
                 const ticketTypeName = firstItem?.ticketType?.name || booking.ticketType?.name || 'Standard Tier';
                 const tickets = getBookingTickets(booking);
+                const pendingCash = isCashPendingBooking(booking);
                 const totalQty = tickets.length || booking.quantity || 1;
 
                 return (
@@ -283,15 +311,15 @@ export default function MyTicketsPage() {
                           right: '12px',
                           padding: '4px 10px',
                           borderRadius: '8px',
-                          background: isArchivedOrDeleted ? 'rgba(239, 68, 68, 0.2)' : C.greenDim,
-                          color: isArchivedOrDeleted ? '#EF4444' : C.green,
-                          border: `1px solid ${isArchivedOrDeleted ? '#EF4444' : C.green}`,
+                          background: isArchivedOrDeleted ? 'rgba(239, 68, 68, 0.2)' : pendingCash ? C.goldDim : C.greenDim,
+                          color: isArchivedOrDeleted ? '#EF4444' : pendingCash ? C.gold : C.green,
+                          border: `1px solid ${isArchivedOrDeleted ? '#EF4444' : pendingCash ? C.gold : C.green}`,
                           fontSize: '11px',
                           fontWeight: 800,
                           fontFamily: 'Space Grotesk, sans-serif',
                         }}
                       >
-                        {isArchivedOrDeleted ? 'ARCHIVED' : 'Ticket Valid'}
+                        {isArchivedOrDeleted ? 'ARCHIVED' : pendingCash ? 'CASH PENDING' : 'Ticket Valid'}
                       </div>
                     </div>
 
@@ -302,7 +330,7 @@ export default function MyTicketsPage() {
                           Ref: #{bookingRef}
                         </span>
                         <span style={{ fontSize: '11px', color: C.muted, fontWeight: 600 }}>
-                          Qty: <strong style={{ color: C.green }}>{totalQty} QR {totalQty === 1 ? 'Pass' : 'Passes'}</strong>
+                          Qty: <strong style={{ color: pendingCash ? C.gold : C.green }}>{totalQty} {pendingCash ? (totalQty === 1 ? 'ticket' : 'tickets') : `QR ${totalQty === 1 ? 'Pass' : 'Passes'}`}</strong>
                         </span>
                       </div>
 
@@ -312,6 +340,7 @@ export default function MyTicketsPage() {
 
                       {/* Chips Row: Section & Ticket Tier */}
                       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                        <PaymentMethodChip booking={booking} compact />
                         <span style={{ padding: '3px 8px', borderRadius: '6px', background: 'rgba(234,179,8,0.1)', border: `1px solid ${C.borderGold}`, color: C.gold, fontSize: '11px', fontWeight: 700 }}>
                           Section: {sectionName}
                         </span>
@@ -359,7 +388,7 @@ export default function MyTicketsPage() {
                           style={{
                             width: '100%',
                             padding: '12px',
-                            background: isArchivedOrDeleted ? 'rgba(255, 255, 255, 0.05)' : C.gold,
+                            background: isArchivedOrDeleted ? 'rgba(255, 255, 255, 0.05)' : pendingCash ? C.gold : C.gold,
                             color: isArchivedOrDeleted ? C.muted : '#000000',
                             border: isArchivedOrDeleted ? `1px solid ${C.border}` : 'none',
                             borderRadius: '12px',
@@ -374,9 +403,9 @@ export default function MyTicketsPage() {
                             boxShadow: isArchivedOrDeleted ? 'none' : '0 4px 14px rgba(234, 179, 8, 0.25)',
                           }}
                         >
-                          <QrCode size={18} /> {isArchivedOrDeleted ? 'View Archived Pass' : totalQty > 1 ? `View ${totalQty} QR Passes` : 'View QR Entry Pass'}
+                          <QrCode size={18} /> {isArchivedOrDeleted ? 'View Archived Pass' : pendingCash ? 'View Pending Hold' : totalQty > 1 ? `View ${totalQty} QR Passes` : 'View QR Entry Pass'}
                         </button>
-                        {!isArchivedOrDeleted && <TicketActions bookingId={booking.id} compact />}
+                        {!isArchivedOrDeleted && !pendingCash && <TicketActions bookingId={booking.id} compact />}
                       </div>
                     </div>
                   </div>

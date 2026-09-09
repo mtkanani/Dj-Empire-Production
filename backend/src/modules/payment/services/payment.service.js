@@ -5,6 +5,7 @@ import { BookingService } from '../../booking/services/booking.service.js';
 import { BookingRepository } from '../../booking/repositories/booking.repository.js';
 import { AppError } from '../../../utils/AppError.js';
 import { HTTP_STATUS } from '../../../constants/httpStatusCodes.js';
+import { PAID_PAYMENT_STATUSES, STAFF_ROLES, isPaid } from '../../../constants/paymentStatus.js';
 
 /**
  * Domain Service for Payment Processing using Strategy Pattern Providers
@@ -21,8 +22,15 @@ export class PaymentService {
       throw new AppError('Access denied. Booking does not belong to your account', HTTP_STATUS.FORBIDDEN);
     }
 
-    if (booking.bookingStatus === 'Confirmed' || booking.paymentStatus === 'Paid') {
+    if (booking.bookingStatus === 'Confirmed' || isPaid(booking.paymentStatus)) {
       throw new AppError('Booking has already been paid and confirmed', HTTP_STATUS.BAD_REQUEST);
+    }
+
+    if (booking.paymentGateway === 'CASH') {
+      throw new AppError(
+        'This booking is awaiting cash verification. An authorised administrator or organizer must confirm the cash was received.',
+        HTTP_STATUS.BAD_REQUEST
+      );
     }
 
     const currency = dto.currency || booking.currency || 'INR';
@@ -70,11 +78,15 @@ export class PaymentService {
   /**
    * Verify Payment Signature / Callback Response
    */
-  static async verifyPayment(dto) {
+  static async verifyPayment(userId, dto) {
     const payment = await PaymentRepository.findById(dto.paymentId);
     if (!payment) throw new AppError('Payment record not found', HTTP_STATUS.NOT_FOUND);
 
-    if (payment.paymentStatus === PaymentStatus.Paid) {
+    if (payment.userId !== userId) {
+      throw new AppError('Access denied. Payment does not belong to your account', HTTP_STATUS.FORBIDDEN);
+    }
+
+    if (PAID_PAYMENT_STATUSES.includes(payment.paymentStatus)) {
       return { message: 'Payment already verified & paid.', payment };
     }
 
@@ -119,9 +131,18 @@ export class PaymentService {
     };
   }
 
-  static async getPaymentDetails(paymentId) {
+  /**
+   * Fetch a payment. Customers may only read their own; staff may read any.
+   */
+  static async getPaymentDetails(paymentId, requester) {
     const payment = await PaymentRepository.findById(paymentId);
     if (!payment) throw new AppError('Payment record not found', HTTP_STATUS.NOT_FOUND);
+
+    const isStaff = STAFF_ROLES.includes(requester?.role);
+    if (!isStaff && payment.userId !== requester?.userId) {
+      throw new AppError('Access denied. Payment does not belong to your account', HTTP_STATUS.FORBIDDEN);
+    }
+
     return payment;
   }
 

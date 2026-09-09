@@ -185,7 +185,7 @@ export default function CustomerBookingsPage() {
                   <div style={{ height: '140px', position: 'relative', overflow: 'hidden' }}>
                     <img src={banner} alt={event.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     <div style={{ position: 'absolute', top: '12px', right: '12px' }}>
-                      <PaymentStatusBadge status={booking.paymentStatus || booking.bookingStatus} />
+                      <PaymentStatusBadge status={booking.displayPaymentStatus || booking.paymentStatus || booking.bookingStatus} gateway={booking.paymentGateway} />
                     </div>
                   </div>
 

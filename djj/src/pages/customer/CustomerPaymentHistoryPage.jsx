@@ -106,9 +106,8 @@ export default function CustomerPaymentHistoryPage() {
           >
             <option value="ALL">All Gateways</option>
             <option value="RAZORPAY">Razorpay</option>
-            <option value="PAYPAL">PayPal</option>
-            <option value="STRIPE">Stripe</option>
             <option value="CASH">Cash</option>
+            <option value="STRIPE">Stripe</option>
             <option value="BANK_TRANSFER">Bank Transfer</option>
           </select>
         </div>

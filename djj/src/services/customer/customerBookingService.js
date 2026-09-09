@@ -33,4 +33,7 @@ export const customerBookingService = {
 
   // QR Ticket
   getQrTicket: (bookingId, ticketId) => api.get(`/bookings/${bookingId}/tickets/${ticketId}/qr`),
+
+  getCashVerificationQr: (bookingId) =>
+    api.get(`/bookings/${bookingId}/cash-verification-qr`, { responseType: 'blob' }),
 };

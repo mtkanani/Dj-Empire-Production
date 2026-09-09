@@ -4,8 +4,7 @@ import { PaymentProviderFactory } from '../providers/paymentProvider.factory.js'
 import { BookingService } from '../../booking/services/booking.service.js';
 import { AppError } from '../../../utils/AppError.js';
 import { HTTP_STATUS } from '../../../constants/httpStatusCodes.js';
-
-const REFUNDABLE_STATUSES = [PaymentStatus.Paid, PaymentStatus.Captured, PaymentStatus.PartiallyRefunded];
+import { REFUNDABLE_PAYMENT_STATUSES } from '../../../constants/paymentStatus.js';
 
 /**
  * Service handling Refund Processing
@@ -20,7 +19,7 @@ export class RefundService {
       throw new AppError('Access denied. This payment does not belong to your events', HTTP_STATUS.FORBIDDEN);
     }
 
-    if (!REFUNDABLE_STATUSES.includes(payment.paymentStatus)) {
+    if (!REFUNDABLE_PAYMENT_STATUSES.includes(payment.paymentStatus)) {
       throw new AppError('Only Paid transactions can be refunded', HTTP_STATUS.BAD_REQUEST);
     }
 

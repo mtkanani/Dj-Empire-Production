@@ -1,4 +1,6 @@
 import { IPaymentProvider } from './paymentProvider.interface.js';
+import { AppError } from '../../../utils/AppError.js';
+import { HTTP_STATUS } from '../../../constants/httpStatusCodes.js';
 
 /**
  * Stripe Payment Provider Implementation (Global Multi-Currency & Cards)
@@ -16,12 +18,10 @@ export class StripeProvider extends IPaymentProvider {
     };
   }
 
-  async verifyPayment({ gatewayOrderId, gatewayPaymentId }) {
-    return {
-      verified: true,
-      gatewayPaymentId: gatewayPaymentId || `ch_stripe_${Math.random().toString(36).substring(2, 12)}`,
-      gatewayTransactionId: `txn_stripe_${Math.random().toString(36).substring(2, 12)}`,
-    };
+  async verifyPayment() {
+    // Never wired to the real Stripe SDK — approving unverified payments here
+    // would issue tickets for free.
+    throw new AppError('Stripe payments are not enabled on this platform', HTTP_STATUS.BAD_REQUEST);
   }
 
   async processRefund({ gatewayPaymentId, amount }) {
@@ -33,14 +33,7 @@ export class StripeProvider extends IPaymentProvider {
     };
   }
 
-  async parseWebhook(webhookPayload) {
-    const eventType = webhookPayload.type || 'payment_intent.succeeded';
-    return {
-      verified: true,
-      eventType,
-      gatewayOrderId: webhookPayload.data?.object?.id || webhookPayload.gatewayOrderId,
-      gatewayPaymentId: webhookPayload.data?.object?.latest_charge || webhookPayload.gatewayPaymentId,
-      status: eventType === 'payment_intent.succeeded' ? 'Paid' : 'Failed',
-    };
+  async parseWebhook() {
+    throw new AppError('Stripe webhooks are not enabled on this platform', HTTP_STATUS.BAD_REQUEST);
   }
 }

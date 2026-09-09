@@ -1,5 +1,6 @@
 import PDFDocument from 'pdfkit';
 import { generateQrPngBuffer, ticketQrPayload } from './ticketBundle.util.js';
+import { maskMobile } from './presentBooking.util.js';
 
 function money(amount, currency = 'INR') {
   return `${currency} ${Number(amount || 0).toFixed(2)}`;
@@ -59,9 +60,9 @@ export async function generateTicketsPdf(bundle) {
     let y = cardY + 28;
 
     doc.fillColor(COLORS.gold).fontSize(9).font('Helvetica-Bold').text('GUEST', leftX, y);
-    doc.fillColor(COLORS.text).fontSize(13).font('Helvetica-Bold').text(bundle.user.name || 'Ticket Holder', leftX, y + 14);
+    doc.fillColor(COLORS.text).fontSize(13).font('Helvetica-Bold').text(ticket.guestName || bundle.user.name || 'Ticket Holder', leftX, y + 14);
     doc.fillColor(COLORS.muted).fontSize(10).font('Helvetica').text(bundle.user.email || '', leftX, y + 32);
-    if (bundle.user.phone) doc.text(bundle.user.phone, leftX, y + 46);
+    if (ticket.guestMobile) doc.text(maskMobile(ticket.guestMobile), leftX, y + 46);
 
     y = cardY + 92;
     doc.moveTo(leftX, y).lineTo(cardX + cardW - 28, y).strokeColor(COLORS.line).lineWidth(1).stroke();
@@ -79,8 +80,10 @@ export async function generateTicketsPdf(bundle) {
     ];
     if (ticket.seat) details.push(['SEAT', ticket.seat]);
     details.push(['PRICE', money(ticket.unitPrice, bundle.currency)]);
+    details.push(['PAYMENT', bundle.paymentGateway === 'CASH' ? 'Cash' : (bundle.paymentGateway || 'Online')]);
     details.push(['TOTAL PAID', money(bundle.totalAmount, bundle.currency)]);
     details.push(['STATUS', ticket.publicStatus || 'CONFIRMED']);
+    details.push(['IDENTITY', ticket.identityVerified ? 'Verified: Yes' : 'Verified: Pending']);
 
     doc.font('Helvetica');
     details.forEach(([label, value]) => {

@@ -2,19 +2,27 @@ import React from 'react';
 import { CheckCircle2, Clock, XCircle, AlertTriangle, RefreshCw } from 'lucide-react';
 import { C } from '../../constants/theme.js';
 
-export const PaymentStatusBadge = ({ status = 'Pending' }) => {
-  const normalized = String(status).toLowerCase();
+export const PaymentStatusBadge = ({ status = 'Pending', gateway = null }) => {
+  const normalized = String(status).toLowerCase().replace(/\s+/g, '_');
+  const isCash = String(gateway || '').toUpperCase() === 'CASH';
 
   let config = {
-    label: 'Pending',
-    color: C.amber,
-    bgColor: C.amberDim,
+    label: isCash ? 'Pending Cash Verification' : 'Pending',
+    color: C.amber || C.gold,
+    bgColor: C.amberDim || C.goldDim,
     icon: Clock,
   };
 
-  if (normalized === 'paid' || normalized === 'confirmed' || normalized === 'success') {
+  if (normalized === 'paid' || normalized === 'confirmed' || normalized === 'success' || normalized === 'captured') {
     config = {
-      label: 'Paid & Confirmed',
+      label: isCash ? 'Cash Received' : 'Paid & Confirmed',
+      color: C.green,
+      bgColor: C.greenDim,
+      icon: CheckCircle2,
+    };
+  } else if (normalized === 'cash_received' || normalized === 'cashreceived') {
+    config = {
+      label: 'Cash Received',
       color: C.green,
       bgColor: C.greenDim,
       icon: CheckCircle2,
@@ -33,9 +41,9 @@ export const PaymentStatusBadge = ({ status = 'Pending' }) => {
       bgColor: C.redDim,
       icon: XCircle,
     };
-  } else if (normalized === 'cancelled') {
+  } else if (normalized === 'cancelled' || normalized === 'expired') {
     config = {
-      label: 'Cancelled',
+      label: normalized === 'expired' ? 'Expired' : 'Cancelled',
       color: C.muted,
       bgColor: 'rgba(255,255,255,0.04)',
       icon: AlertTriangle,

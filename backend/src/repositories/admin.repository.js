@@ -34,6 +34,9 @@ export class AdminRepository {
       pendingOrganizers,
       pendingEvents,
       recentSignups,
+      pendingCashCount,
+      cashReceivedCount,
+      cashRevenue,
     ] = await Promise.all([
       prisma.user.count({
         where: { isDeleted: false, role: { not: Role.SUPER_ADMIN } },
@@ -71,6 +74,25 @@ export class AdminRepository {
           createdAt: true,
         },
       }),
+      prisma.booking.count({
+        where: {
+          paymentGateway: 'CASH',
+          paymentStatus: 'Pending',
+        },
+      }),
+      prisma.booking.count({
+        where: {
+          paymentGateway: 'CASH',
+          paymentStatus: 'CASH_RECEIVED',
+        },
+      }),
+      prisma.booking.aggregate({
+        _sum: { totalAmount: true },
+        where: {
+          paymentGateway: 'CASH',
+          paymentStatus: 'CASH_RECEIVED',
+        },
+      }),
     ]);
 
     return {
@@ -84,6 +106,11 @@ export class AdminRepository {
       pendingOrganizers,
       pendingEvents,
       recentSignups,
+      cashPayments: {
+        pendingCash: pendingCashCount,
+        cashReceived: cashReceivedCount,
+        cashRevenue: cashRevenue._sum.totalAmount || 0,
+      },
     };
   }
 

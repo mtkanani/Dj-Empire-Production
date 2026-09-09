@@ -105,8 +105,11 @@ app.use(
 // 6. Favicon Handler (Prevents browser 404 logs)
 app.get('/favicon.ico', (req, res) => res.status(204).end());
 
-// 7. Swagger API Documentation Endpoint
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+// 7. Swagger is development-only. The public docs previously advertised the
+// CASH gateway on a customer-callable verify route.
+if (env.NODE_ENV !== 'production') {
+  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+}
 
 
 // 7. Root health-check route (Render pings HEAD / to verify the service is up)

@@ -17,7 +17,7 @@ export const PAYMENT_PROVIDERS = [
     color: '#EAB308',
     supportedCurrencies: ['INR'],
     isOnline: true,
-    enabled: true,
+    enabled: false,
   },
   {
     id: PAYMENT_GATEWAYS.PAYPAL,
@@ -27,7 +27,7 @@ export const PAYMENT_PROVIDERS = [
     color: '#0070BA',
     supportedCurrencies: ['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'SGD'],
     isOnline: true,
-    enabled: true,
+    enabled: false,
   },
   {
     id: PAYMENT_GATEWAYS.STRIPE,
@@ -37,7 +37,7 @@ export const PAYMENT_PROVIDERS = [
     color: '#635BFF',
     supportedCurrencies: ['USD', 'EUR', 'GBP', 'INR', 'AED', 'CAD'],
     isOnline: true,
-    enabled: true,
+    enabled: false,
   },
   {
     id: PAYMENT_GATEWAYS.BANK_TRANSFER,
@@ -47,7 +47,7 @@ export const PAYMENT_PROVIDERS = [
     color: '#10B981',
     supportedCurrencies: ['INR', 'USD', 'EUR'],
     isOnline: false,
-    enabled: true,
+    enabled: false,
   },
   {
     id: PAYMENT_GATEWAYS.CASH,

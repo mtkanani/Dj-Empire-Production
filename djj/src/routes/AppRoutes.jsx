@@ -43,6 +43,7 @@ import InvoicePage from '../pages/customer/InvoicePage.jsx';
 import CustomerBookingsPage from '../pages/customer/CustomerBookingsPage.jsx';
 import CustomerBookingDetailsPage from '../pages/customer/CustomerBookingDetailsPage.jsx';
 import OrganizerBookingDetailsPage from '../pages/organizer/BookingDetailsPage.jsx';
+import CashVerifyPage from '../pages/organizer/CashVerifyPage.jsx';
 
 // Phase 14 — Digital QR Tickets Page & Profile Page
 import MyTicketsPage from '../pages/customer/MyTicketsPage.jsx';
@@ -336,6 +337,7 @@ export default function AppRoutes({ setView }) {
         {/* Phase 13 Organizer Booking Routes */}
         <Route path="bookings" element={<BookingsPage />} />
         <Route path="bookings/:id" element={<OrganizerBookingDetailsPage />} />
+        <Route path="cash-verify" element={<CashVerifyPage />} />
 
         {/* Phase 14 QR Scanner & Check-In Routes */}
         <Route path="check-in" element={<OrganizerCheckInPage />} />
@@ -390,6 +392,7 @@ export default function AppRoutes({ setView }) {
         <Route path="venues" element={<VenuesPage />} />
         <Route path="tax-settings" element={<TaxSettingsPage />} />
         <Route path="payments" element={<PaymentsPage />} />
+        <Route path="cash-verify" element={<CashVerifyPage />} />
         <Route path="audit-logs" element={<AuditLogsPage />} />
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="settings" element={<SettingsPage />} />

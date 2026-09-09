@@ -81,7 +81,7 @@ export default function BookingDetailsPage() {
               #{bookingRef}
             </h2>
           </div>
-          <PaymentStatusBadge status={booking.paymentStatus || booking.bookingStatus} />
+          <PaymentStatusBadge status={booking.displayPaymentStatus || booking.paymentStatus || booking.bookingStatus} gateway={booking.paymentGateway} />
         </div>
 
         {/* 2-Column Info: Left (Customer Profile), Right (Event Summary) */}
@@ -159,6 +159,30 @@ export default function BookingDetailsPage() {
             </tbody>
           </table>
         </div>
+
+        {/* Financial Summary */}
+        {booking.attendees?.length > 0 && (
+          <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: '16px' }}>
+            <h4 style={{ margin: '0 0 12px', fontSize: '14px', color: C.text, fontFamily: 'Space Grotesk, sans-serif' }}>Attendees</h4>
+            <ol style={{ margin: 0, paddingLeft: 18, color: C.text, fontSize: 13 }}>
+              {booking.attendees.map((a) => (
+                <li key={a.id || a.attendeeIndex} style={{ marginBottom: 6 }}>
+                  {a.fullName} · {a.mobileNumber}
+                  {a.hasIdentityDocument ? ' · ID on file' : ''}
+                </li>
+              ))}
+            </ol>
+            {booking.paymentGateway === 'CASH' && booking.paymentStatus !== 'CASH_RECEIVED' && booking.paymentStatus !== 'Paid' && (
+              <button
+                type="button"
+                onClick={() => navigate('/organizer/cash-verify')}
+                style={{ marginTop: 12, padding: '10px 16px', background: C.gold, color: '#000', border: 'none', borderRadius: 10, fontWeight: 800, cursor: 'pointer' }}
+              >
+                Verify Cash Payment
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Financial Summary */}
         <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px' }}>

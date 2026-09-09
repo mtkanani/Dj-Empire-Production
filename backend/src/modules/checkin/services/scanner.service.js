@@ -170,12 +170,14 @@ export class ScannerService {
     }
 
     // 1. Total Tickets and Check-ins Stats
+    const paidStatusFilter = { in: ['Paid', 'Captured', 'CASH_RECEIVED'] };
+
     const totalBookings = await prisma.booking.count({
-      where: { eventId, paymentStatus: 'Paid' },
+      where: { eventId, paymentStatus: paidStatusFilter },
     });
 
     const totalTicketsCount = await prisma.ticket.count({
-      where: { booking: { eventId, paymentStatus: 'Paid' } },
+      where: { booking: { eventId, paymentStatus: paidStatusFilter } },
     });
 
     const totalCheckedInCount = await prisma.ticket.count({

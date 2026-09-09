@@ -42,24 +42,13 @@ export const formatTicketPrice = (price, currency = 'INR') => {
 
 export const getBookingTickets = (booking) => {
   const tickets = Array.isArray(booking?.tickets) ? [...booking.tickets] : [];
-  if (tickets.length > 0) {
-    tickets.sort((a, b) => {
-      const aTime = new Date(a.createdAt || 0).getTime();
-      const bTime = new Date(b.createdAt || 0).getTime();
-      if (aTime !== bTime) return aTime - bTime;
-      return String(a.ticketCode || '').localeCompare(String(b.ticketCode || ''));
-    });
-    return tickets;
-  }
-
-  return [
-    {
-      id: booking?.id || 'fallback',
-      ticketCode: booking?.bookingNumber || booking?.id || null,
-      ticketType: booking?.items?.[0]?.ticketType || null,
-      status: 'ISSUED',
-    },
-  ];
+  tickets.sort((a, b) => {
+    const aTime = new Date(a.createdAt || 0).getTime();
+    const bTime = new Date(b.createdAt || 0).getTime();
+    if (aTime !== bTime) return aTime - bTime;
+    return String(a.ticketCode || '').localeCompare(String(b.ticketCode || ''));
+  });
+  return tickets;
 };
 
 export const buildTicketQrValue = (booking, ticket, event = null) =>

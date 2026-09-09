@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Search, Filter, RefreshCw, Layers } from 'lucide-react';
+import { Filter, X } from 'lucide-react';
 import { C } from '../../constants/theme.js';
 import { customerEventService } from '../../services/customer/customerEventService.js';
 import { CustomerNavbar } from '../../components/customer/CustomerNavbar.jsx';
@@ -22,8 +22,10 @@ export default function CustomerEventListingPage() {
   const [cities, setCities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
-  // Sync state to URL params
+  const hasActiveFilters = Boolean(search || categoryId || cityId || minPrice || maxPrice);
+
   const updateURLParams = useCallback((key, value) => {
     setSearchParams((prev) => {
       const newParams = new URLSearchParams(prev);
@@ -99,39 +101,82 @@ export default function CustomerEventListingPage() {
     fetchEvents();
   }, [fetchEvents]);
 
+  useEffect(() => {
+    if (!filtersOpen) return undefined;
+    const onKey = (e) => {
+      if (e.key === 'Escape') setFiltersOpen(false);
+    };
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = '';
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [filtersOpen]);
+
+  const filterProps = {
+    search,
+    categoryId,
+    cityId,
+    minPrice,
+    maxPrice,
+    categories,
+    cities,
+    onFilterChange: handleFilterChange,
+    onClearAll: handleClearAll,
+  };
+
   return (
     <div style={{ minHeight: '100vh', background: C.bgMain, color: C.text, display: 'flex', flexDirection: 'column' }}>
       <CustomerNavbar />
 
-      <main style={{ flexGrow: 1, maxWidth: '1280px', width: '100%', margin: '0 auto', padding: '40px 24px', display: 'flex', flexDirection: 'column', gap: '30px' }}>
-        {/* Header Title */}
+      <main className="explore-main" style={{ flexGrow: 1, maxWidth: '1280px', width: '100%', margin: '0 auto', padding: '40px 24px', display: 'flex', flexDirection: 'column', gap: '30px', boxSizing: 'border-box' }}>
         <div>
-          <h1 style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: '32px', fontWeight: 800, margin: '0 0 8px', color: C.text }}>
+          <h1 className="explore-title" style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: '32px', fontWeight: 800, margin: '0 0 8px', color: C.text }}>
             Explore Live Events
           </h1>
-          <p style={{ color: C.muted, fontSize: '14px', margin: 0 }}>
+          <p className="explore-subtitle" style={{ color: C.muted, fontSize: '14px', margin: 0, lineHeight: 1.5 }}>
             Browse upcoming concerts, summits, sports matches, and cultural festivals.
           </p>
         </div>
 
-        {/* 2-Column Layout: Left (Filter Panel), Right (Event Grid) */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 300px) 1fr', gap: '30px', alignItems: 'start' }}>
-          {/* Left Filter Sidebar */}
-          <EventFilters
-            search={search}
-            categoryId={categoryId}
-            cityId={cityId}
-            minPrice={minPrice}
-            maxPrice={maxPrice}
-            categories={categories}
-            cities={cities}
-            onFilterChange={handleFilterChange}
-            onClearAll={handleClearAll}
-          />
+        <div className="explore-toolbar" style={{ display: 'none', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+          <span style={{ fontSize: '13px', color: C.muted, fontWeight: 600 }}>
+            Showing <strong style={{ color: C.gold }}>{events.length}</strong> events
+          </span>
+          <button
+            type="button"
+            onClick={() => setFiltersOpen(true)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              minHeight: '44px',
+              padding: '10px 16px',
+              borderRadius: '12px',
+              border: `1px solid ${C.borderGold}`,
+              background: C.goldDim,
+              color: C.gold,
+              fontSize: '13px',
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            <Filter size={16} />
+            Filters
+            {hasActiveFilters ? (
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: C.gold }} />
+            ) : null}
+          </button>
+        </div>
 
-          {/* Right Main Grid */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div className="explore-layout" style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 300px) 1fr', gap: '30px', alignItems: 'start' }}>
+          <aside className="explore-filters-desktop">
+            <EventFilters {...filterProps} />
+          </aside>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0 }}>
+            <div className="explore-count-desktop" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: '14px', color: C.muted, fontWeight: 600 }}>
                 Showing <strong style={{ color: C.gold }}>{events.length}</strong> Published Events
               </span>
@@ -142,7 +187,120 @@ export default function CustomerEventListingPage() {
         </div>
       </main>
 
+      {filtersOpen ? (
+        <div
+          className="explore-filter-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Event filters"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 3000,
+            background: 'rgba(0,0,0,0.65)',
+            display: 'flex',
+            alignItems: 'flex-end',
+            justifyContent: 'center',
+          }}
+          onClick={() => setFiltersOpen(false)}
+        >
+          <div
+            style={{
+              width: '100%',
+              maxWidth: '480px',
+              maxHeight: '85vh',
+              overflowY: 'auto',
+              background: C.bgMain,
+              borderTopLeftRadius: '20px',
+              borderTopRightRadius: '20px',
+              padding: '16px 16px 28px',
+              boxSizing: 'border-box',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+              <span style={{ fontFamily: 'Space Grotesk, sans-serif', fontWeight: 700, fontSize: '16px' }}>Filters</span>
+              <button
+                type="button"
+                onClick={() => setFiltersOpen(false)}
+                aria-label="Close filters"
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: '12px',
+                  border: `1px solid ${C.border}`,
+                  background: 'transparent',
+                  color: C.text,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <EventFilters {...filterProps} />
+            <button
+              type="button"
+              onClick={() => setFiltersOpen(false)}
+              style={{
+                width: '100%',
+                marginTop: '16px',
+                minHeight: '48px',
+                borderRadius: '12px',
+                border: 'none',
+                background: C.gold,
+                color: '#000',
+                fontWeight: 700,
+                fontSize: '14px',
+                cursor: 'pointer',
+              }}
+            >
+              Show {events.length} events
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       <Footer />
+
+      <style>{`
+        @media (max-width: 980px) {
+          .explore-main {
+            padding: 28px 16px 40px !important;
+            gap: 20px !important;
+          }
+          .explore-title {
+            font-size: 26px !important;
+          }
+          .explore-layout {
+            grid-template-columns: 1fr !important;
+            gap: 20px !important;
+          }
+          .explore-filters-desktop {
+            display: none !important;
+          }
+          .explore-count-desktop {
+            display: none !important;
+          }
+          .explore-toolbar {
+            display: flex !important;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .explore-main {
+            padding: 20px 12px 32px !important;
+          }
+          .explore-title {
+            font-size: 22px !important;
+          }
+          .explore-subtitle {
+            font-size: 13px !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }

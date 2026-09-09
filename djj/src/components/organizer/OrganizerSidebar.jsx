@@ -1,6 +1,7 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
+  Banknote,
   LayoutDashboard,
   Calendar,
   CalendarPlus,
@@ -29,6 +30,7 @@ export const organizerNavItems = [
   { id: 'create-event', label: 'Create Event', route: '/organizer/events/create', icon: CalendarPlus },
   { id: 'ticketing', label: 'Ticketing', route: '/organizer/ticketing', icon: Ticket },
   { id: 'bookings', label: 'Bookings', route: '/organizer/bookings', icon: BookOpen },
+  { id: 'cash-verify', label: 'Cash Verify', route: '/organizer/cash-verify', icon: Banknote },
   { id: 'payments', label: 'Payments', route: '/organizer/payments', icon: CreditCard },
   { id: 'refunds', label: 'Refunds', route: '/organizer/refunds', icon: RefreshCw },
   { id: 'invoices', label: 'Invoices', route: '/organizer/invoices', icon: Receipt },

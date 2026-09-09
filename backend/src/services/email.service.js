@@ -240,4 +240,35 @@ export class EmailService {
     logger.info(`📧 Ticket email sent to ${to}: ${info.messageId}`);
     return info;
   }
+
+  static async sendCashPendingEmail({
+    to,
+    bookingNumber,
+    eventName,
+    quantity,
+    totalAmount,
+    currency = 'INR',
+    attendees = [],
+  }) {
+    if (!to) return null;
+    const attendeeRows = attendees
+      .map((a, i) => `<li>${escapeHtml(a.fullName || `Attendee ${i + 1}`)}</li>`)
+      .join('');
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; background: #0b0d14; color: #f8fafc;">
+        <h2 style="color: #fbbf24; margin: 0 0 12px;">Your booking has been created</h2>
+        <p style="color: #e5e7eb;">Payment Method: <strong>Cash</strong><br/>Payment Status: <strong>Pending</strong></p>
+        <p style="font-size: 22px; font-weight: 800; color: #fbbf24; letter-spacing: 1px;">Booking ID: ${escapeHtml(bookingNumber)}</p>
+        <p>Event: <strong>${escapeHtml(eventName || 'Event')}</strong><br/>Tickets: ${quantity}<br/>Amount due: ${escapeHtml(currency)} ${Number(totalAmount || 0).toFixed(2)}</p>
+        ${attendeeRows ? `<p>Attendees:</p><ol>${attendeeRows}</ol>` : ''}
+        <p>Please provide your Booking ID to the authorised event administrator or organizer when making the cash payment. This booking stays pending until cash is verified — it does not expire automatically.</p>
+        <p>You can also find this pending pass under <strong>My Tickets</strong>. Entry QR codes are issued only after cash is confirmed.</p>
+      </div>
+    `;
+    return this.sendBookingTicketEmail({
+      to,
+      subject: `Booking created — ${bookingNumber} (cash pending)`,
+      html,
+    });
+  }
 }

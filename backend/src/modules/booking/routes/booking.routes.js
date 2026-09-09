@@ -14,7 +14,9 @@ import {
   createBookingSchema,
   confirmBookingSchema,
   cancelBookingSchema,
+  cashLookupQrSchema,
 } from '../validations/booking.validation.js';
+import { CashVerificationController } from '../controllers/cashVerification.controller.js';
 
 const router = Router();
 
@@ -126,9 +128,14 @@ router.post(
 );
 
 router.get('/bookings/:bookingId', BookingController.getBookingById);
-router.patch('/bookings/:bookingId/confirm', validate(confirmBookingSchema), BookingController.confirmBooking);
+router.patch('/bookings/:bookingId/confirm', authorize('SUPER_ADMIN'), validate(confirmBookingSchema), BookingController.confirmBooking);
 router.patch('/bookings/:bookingId/cancel', validate(cancelBookingSchema), BookingController.cancelBooking);
 router.get('/bookings/:bookingId/items', BookingController.getBookingItems);
+router.get(
+  '/bookings/:bookingId/cash-verification-qr',
+  authorize('CUSTOMER', 'EVENT_ORGANIZER', 'SUPER_ADMIN'),
+  CashVerificationController.customerCashQr
+);
 
 // ==================== QR CODE TICKET ====================
 router.get('/bookings/:bookingId/tickets/:ticketId/qr', authorize('CUSTOMER'), QrController.generateQrTicket);
@@ -142,5 +149,22 @@ router.get('/my-past-events', authorize('CUSTOMER'), MyBookingController.getMyPa
 // ==================== ORGANIZER BOOKINGS ====================
 router.get('/organizer/bookings', authorize('EVENT_ORGANIZER', 'SUPER_ADMIN'), OrganizerBookingController.getOrganizerBookings);
 router.get('/organizer/bookings/:bookingId', authorize('EVENT_ORGANIZER', 'SUPER_ADMIN'), OrganizerBookingController.getOrganizerBookingById);
+
+router.get(
+  '/admin/bookings/lookup',
+  authorize('SUPER_ADMIN', 'EVENT_ORGANIZER'),
+  CashVerificationController.lookup
+);
+router.post(
+  '/admin/bookings/lookup-qr',
+  authorize('SUPER_ADMIN', 'EVENT_ORGANIZER'),
+  validate(cashLookupQrSchema),
+  CashVerificationController.lookupQr
+);
+router.post(
+  '/admin/bookings/:bookingNumber/verify-cash',
+  authorize('SUPER_ADMIN', 'EVENT_ORGANIZER'),
+  CashVerificationController.verify
+);
 
 export default router;

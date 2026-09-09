@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Mail, Phone, ShieldCheck, Ticket, Calendar, CreditCard, Save, CheckCircle2, ArrowRight } from 'lucide-react';
+import { User, Mail, Phone, ShieldCheck, Ticket, Calendar, CreditCard, Save, ArrowRight } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useToast } from '../../context/ToastContext.jsx';
 import { tokenManager } from '../../utils/tokenManager.js';
@@ -120,23 +120,28 @@ export default function CustomerProfilePage() {
 
   return (
     <div
+      className="profile-page"
       style={{
         minHeight: '100vh',
         background: '#030303',
         color: '#FFFFFF',
         padding: '40px 24px 80px',
         fontFamily: "'Inter', sans-serif",
+        boxSizing: 'border-box',
+        overflowX: 'hidden',
       }}
     >
       <div
+        className="profile-container"
         style={{
           maxWidth: '1100px',
           margin: '0 auto',
+          width: '100%',
         }}
       >
-        {/* Header Title */}
-        <div style={{ marginBottom: '32px' }}>
+        <div className="profile-header" style={{ marginBottom: '32px' }}>
           <h1
+            className="profile-title"
             style={{
               fontFamily: "'Space Grotesk', sans-serif",
               fontSize: '32px',
@@ -148,23 +153,23 @@ export default function CustomerProfilePage() {
           >
             My Account Profile
           </h1>
-          <p style={{ color: '#9CA3AF', fontSize: '15px' }}>
+          <p className="profile-subtitle" style={{ color: '#9CA3AF', fontSize: '15px', margin: 0, lineHeight: 1.5 }}>
             View and edit your personal details, mobile phone number, active event tickets, and booking history.
           </p>
         </div>
 
         <div
+          className="profile-grid"
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))',
             gap: '28px',
             alignItems: 'start',
           }}
         >
-          {/* Left Column: Profile Card & Quick Actions */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            {/* Profile Summary Card */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', minWidth: 0 }}>
             <div
+              className="profile-card"
               style={{
                 background: 'rgba(15, 15, 15, 0.95)',
                 border: '1px solid rgba(255, 215, 0, 0.25)',
@@ -174,8 +179,8 @@ export default function CustomerProfilePage() {
                 textAlign: 'center',
               }}
             >
-              {/* Avatar Initial Circle */}
               <div
+                className="profile-avatar"
                 style={{
                   width: '90px',
                   height: '90px',
@@ -201,6 +206,7 @@ export default function CustomerProfilePage() {
                   fontWeight: 700,
                   color: '#FFFFFF',
                   marginBottom: '4px',
+                  wordBreak: 'break-word',
                 }}
               >
                 {fullName || 'Valued Customer'}
@@ -215,6 +221,8 @@ export default function CustomerProfilePage() {
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '6px',
+                  flexWrap: 'wrap',
+                  wordBreak: 'break-all',
                 }}
               >
                 <Mail size={14} color="#FFD700" />
@@ -256,8 +264,8 @@ export default function CustomerProfilePage() {
               </div>
             </div>
 
-            {/* Quick Actions Navigation */}
             <div
+              className="profile-card"
               style={{
                 background: 'rgba(15, 15, 15, 0.95)',
                 border: '1px solid rgba(255, 255, 255, 0.1)',
@@ -282,72 +290,55 @@ export default function CustomerProfilePage() {
               </h3>
 
               <button
+                type="button"
                 onClick={() => navigate('/my-tickets')}
+                className="profile-quick-link"
                 style={quickLinkStyle}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = '#FFD700';
-                  e.currentTarget.style.background = 'rgba(255, 215, 0, 0.1)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
-                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)';
-                }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <Ticket size={18} color="#FFD700" />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                  <Ticket size={18} color="#FFD700" style={{ flexShrink: 0 }} />
                   <span>My Digital Tickets</span>
                 </div>
-                <ArrowRight size={16} color="#9CA3AF" />
+                <ArrowRight size={16} color="#9CA3AF" style={{ flexShrink: 0 }} />
               </button>
 
               <button
+                type="button"
                 onClick={() => navigate('/my-bookings')}
+                className="profile-quick-link"
                 style={quickLinkStyle}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = '#FFD700';
-                  e.currentTarget.style.background = 'rgba(255, 215, 0, 0.1)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
-                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)';
-                }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <Calendar size={18} color="#FFD700" />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                  <Calendar size={18} color="#FFD700" style={{ flexShrink: 0 }} />
                   <span>My Booking History</span>
                 </div>
-                <ArrowRight size={16} color="#9CA3AF" />
+                <ArrowRight size={16} color="#9CA3AF" style={{ flexShrink: 0 }} />
               </button>
 
               <button
+                type="button"
                 onClick={() => navigate('/my-payments')}
+                className="profile-quick-link"
                 style={quickLinkStyle}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = '#FFD700';
-                  e.currentTarget.style.background = 'rgba(255, 215, 0, 0.1)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
-                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)';
-                }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <CreditCard size={18} color="#FFD700" />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                  <CreditCard size={18} color="#FFD700" style={{ flexShrink: 0 }} />
                   <span>Payment Transactions</span>
                 </div>
-                <ArrowRight size={16} color="#9CA3AF" />
+                <ArrowRight size={16} color="#9CA3AF" style={{ flexShrink: 0 }} />
               </button>
             </div>
           </div>
 
-          {/* Right Column: Pre-filled & Editable Personal Information Form */}
           <div
+            className="profile-card profile-form-card"
             style={{
               background: 'rgba(15, 15, 15, 0.95)',
               border: '1px solid rgba(255, 255, 255, 0.1)',
               borderRadius: '20px',
               padding: '32px',
               boxShadow: '0 12px 36px rgba(0, 0, 0, 0.6)',
+              minWidth: 0,
             }}
           >
             <h3
@@ -429,11 +420,14 @@ export default function CustomerProfilePage() {
               <button
                 type="submit"
                 disabled={isSaving}
+                className="profile-save-btn"
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '8px',
+                  width: '100%',
+                  minHeight: '48px',
                   padding: '14px 28px',
                   borderRadius: '12px',
                   background: 'linear-gradient(135deg, #FFD700 0%, #DAA520 100%)',
@@ -456,6 +450,52 @@ export default function CustomerProfilePage() {
           </div>
         </div>
       </div>
+
+      <style>{`
+        @media (max-width: 980px) {
+          .profile-page {
+            padding: 28px 16px 64px !important;
+          }
+          .profile-title {
+            font-size: 26px !important;
+          }
+          .profile-grid {
+            gap: 20px !important;
+          }
+          .profile-card {
+            padding: 22px !important;
+          }
+          .profile-form-card {
+            padding: 24px !important;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .profile-page {
+            padding: 20px 12px 48px !important;
+          }
+          .profile-header {
+            margin-bottom: 20px !important;
+          }
+          .profile-title {
+            font-size: 22px !important;
+          }
+          .profile-subtitle {
+            font-size: 13px !important;
+          }
+          .profile-avatar {
+            width: 72px !important;
+            height: 72px !important;
+            font-size: 26px !important;
+            margin-bottom: 16px !important;
+          }
+          .profile-quick-link {
+            min-height: 48px !important;
+            padding: 12px 14px !important;
+            font-size: 13px !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }
@@ -495,4 +535,7 @@ const quickLinkStyle = {
   fontWeight: 600,
   cursor: 'pointer',
   transition: 'all 0.2s ease',
+  width: '100%',
+  textAlign: 'left',
+  boxSizing: 'border-box',
 };

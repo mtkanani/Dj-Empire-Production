@@ -11,6 +11,7 @@ import { sectionRoutes, ticketingRoutes } from '../../modules/ticketing/index.js
 import { bookingRoutes } from '../../modules/booking/index.js';
 import { paymentRoutes, webhookRoutes } from '../../modules/payment/index.js';
 import { checkinRoutes, gateRoutes, deviceRoutes, attendanceRoutes, scannerRoutes } from '../../modules/checkin/index.js';
+import identityDocumentRoutes from '../../modules/identity/identityDocument.routes.js';
 
 const router = Router();
 
@@ -46,5 +47,6 @@ router.use('/', gateRoutes);
 router.use('/', deviceRoutes);
 router.use('/', attendanceRoutes);
 router.use('/', scannerRoutes);
+router.use('/', identityDocumentRoutes);
 
 export default router;

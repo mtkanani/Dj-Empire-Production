@@ -72,6 +72,11 @@ export function buildTicketBundle(booking) {
     'Event Organizer';
   const tickets = (booking.tickets || []).map((ticket, index) => {
     const seat = ticket.seats?.[0] || null;
+    const attendee =
+      ticket.attendees?.[0] ||
+      (booking.attendees || []).find((a) => a.ticketId === ticket.id) ||
+      (booking.attendees || [])[index] ||
+      null;
     return {
       ticketId: ticket.id,
       ticketCode: ticket.ticketCode,
@@ -82,6 +87,9 @@ export function buildTicketBundle(booking) {
       unitPrice: ticket.ticketType?.price ?? booking.items?.[0]?.unitPrice ?? 0,
       seat: seat ? `Row ${seat.row}, Seat ${seat.seatNumber}` : null,
       index: index + 1,
+      guestName: attendee?.fullName || `${booking.customer?.firstName || ''} ${booking.customer?.lastName || ''}`.trim(),
+      guestMobile: attendee?.mobileNumber || booking.customer?.phone || '',
+      identityVerified: Boolean(attendee?.identityDocumentId || attendee?.hasIdentityDocument),
     };
   });
 
@@ -99,6 +107,11 @@ export function buildTicketBundle(booking) {
     bookingDate: booking.createdAt,
     bookingStatus: booking.bookingStatus,
     paymentStatus: booking.paymentStatus,
+    paymentGateway: booking.paymentGateway,
+    attendees: (booking.attendees || []).map((a) => ({
+      fullName: a.fullName,
+      mobileNumber: a.mobileNumber,
+    })),
     quantity: booking.quantity || tickets.length || 1,
     currency: booking.currency || 'INR',
     subtotal: booking.subtotal,
@@ -180,8 +193,8 @@ export async function buildTicketEmailHtml(bundle, qrUrlMap) {
           <tr><td style="padding: 6px 0; color: #6b7280;">Total</td><td style="padding: 6px 0; font-weight: 700;">${escapeHtml(bundle.currency)} ${Number(bundle.totalAmount || 0).toFixed(2)}</td></tr>
         </table>
         <h3 style="margin: 20px 0 8px;">Your QR entry passes (${bundle.tickets.length} unique code${bundle.tickets.length > 1 ? 's' : ''})</h3>
-        ${bundle.tickets.length > Object.keys(qrCidMap).length
-          ? `<p style="font-size: 12px; color: #6b7280;">The first ${Object.keys(qrCidMap).length} QR codes are shown below. Remaining passes are in the attached PDF (one page per ticket).</p>`
+        ${bundle.tickets.length > Object.keys(qrUrlMap).length
+          ? `<p style="font-size: 12px; color: #6b7280;">The first ${Object.keys(qrUrlMap).length} QR codes are shown below. Remaining passes are in the attached PDF (one page per ticket).</p>`
           : ''}
         <table style="width: 100%; border-collapse: collapse;">${ticketBlocks}</table>
         <p style="font-size: 12px; color: #6b7280; margin-top: 20px;">Show the matching QR at the gate. Each pass can be used once. Organizer: ${escapeHtml(bundle.event.organizer)}.</p>

@@ -5,6 +5,8 @@ import { QRCodeDisplay } from './QRCodeDisplay.jsx';
 import { getPrimarySchedule, formatEventDate, formatEventTimeRange } from '../../utils/eventSchedule.js';
 import { buildTicketQrValue, isTicketCheckedIn } from '../../utils/ticketUtils.js';
 import { getEventBannerUrl } from '../../utils/eventImage.js';
+import { isCashPendingBooking } from '../../utils/paymentBooking.js';
+import { PaymentMethodChip } from '../payment/PaymentMethodChip.jsx';
 
 export const DigitalTicketCard = ({
   event = null,
@@ -26,7 +28,8 @@ export const DigitalTicketCard = ({
   const passTotal = Math.max(1, ticketTotal || booking?.tickets?.length || 1);
   const passIndex = Math.min(Math.max(1, ticketIndex), passTotal);
   const ticketUsed = isTicketCheckedIn(ticket);
-  const qrValue = buildTicketQrValue(booking, ticket, event);
+  const pendingCash = isCashPendingBooking(booking);
+  const qrValue = pendingCash ? null : buildTicketQrValue(booking, ticket, event);
   const customerName = customer?.firstName
     ? `${customer.firstName} ${customer.lastName || ''}`.trim()
     : customer?.name || customer?.fullName || 'Ticket Holder';
@@ -117,7 +120,7 @@ export const DigitalTicketCard = ({
                 letterSpacing: '0.8px',
               }}
             >
-              {isArchivedOrDeleted ? 'INACTIVE PASS' : ticketUsed ? 'CHECKED IN' : 'CONFIRMED PASS'}
+              {isArchivedOrDeleted ? 'INACTIVE PASS' : pendingCash ? 'PENDING CASH' : ticketUsed ? 'CHECKED IN' : 'CONFIRMED PASS'}
             </span>
 
             {/* Quantity Badge */}
@@ -143,7 +146,7 @@ export const DigitalTicketCard = ({
           {/* Event Title Header */}
           <div style={{ position: 'absolute', bottom: '16px', left: '20px', right: '20px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
             <span style={{ fontSize: '11px', color: C.gold, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px' }}>
-              OFFICIAL ENTRY TICKET
+              {isArchivedOrDeleted ? 'INACTIVE PASS' : pendingCash ? 'PENDING HOLD' : 'OFFICIAL ENTRY TICKET'}
             </span>
             <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 800, color: C.text, fontFamily: 'Space Grotesk, sans-serif', lineHeight: 1.2 }}>
               {title}
@@ -154,6 +157,11 @@ export const DigitalTicketCard = ({
         {/* Content Body */}
         <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
           
+          {/* Payment method */}
+          <div>
+            <PaymentMethodChip booking={booking} />
+          </div>
+
           {/* Key Ticket Info Chips Grid (Section, Tier, Quantity) */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px' }}>
             {/* Section Chip */}
@@ -301,14 +309,26 @@ export const DigitalTicketCard = ({
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <ShieldCheck size={16} color={isArchivedOrDeleted ? C.muted : C.gold} />
-              <span style={{ fontSize: '11px', color: isArchivedOrDeleted || ticketUsed ? C.muted : C.gold, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px' }}>
-                {isArchivedOrDeleted ? 'Gate Pass Inactive' : ticketUsed ? 'This Pass Already Checked In' : `Scan Pass ${passIndex} of ${passTotal} at Gate`}
+              <ShieldCheck size={16} color={isArchivedOrDeleted || pendingCash ? C.muted : C.gold} />
+              <span style={{ fontSize: '11px', color: isArchivedOrDeleted || ticketUsed || pendingCash ? C.muted : C.gold, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px' }}>
+                {isArchivedOrDeleted
+                  ? 'Gate Pass Inactive'
+                  : pendingCash
+                    ? 'Not valid for entry until cash is verified'
+                    : ticketUsed
+                      ? 'This Pass Already Checked In'
+                      : `Scan Pass ${passIndex} of ${passTotal} at Gate`}
               </span>
             </div>
 
-            <div style={{ opacity: ticketUsed || isArchivedOrDeleted ? 0.45 : 1, filter: ticketUsed ? 'grayscale(80%)' : 'none' }}>
-              {qrCodeUrl ? (
+            <div style={{ opacity: ticketUsed || isArchivedOrDeleted || pendingCash ? 0.9 : 1, filter: ticketUsed ? 'grayscale(80%)' : 'none' }}>
+              {pendingCash && qrCodeUrl ? (
+                <img src={qrCodeUrl} alt="Cash verification QR" style={{ width: '180px', height: '180px', borderRadius: '12px', background: '#FFF', padding: '10px' }} />
+              ) : pendingCash ? (
+                <div style={{ width: '180px', minHeight: '120px', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: C.muted, fontSize: '12px', padding: '12px' }}>
+                  Show Booking ID #{bookingRef} to the organiser or admin. Entry QR is issued after cash is confirmed.
+                </div>
+              ) : qrCodeUrl ? (
                 <img src={qrCodeUrl} alt={`QR Entry Pass ${passIndex}`} style={{ width: '180px', height: '180px', borderRadius: '12px', background: '#FFF', padding: '10px' }} />
               ) : (
                 <QRCodeDisplay value={qrValue} size={180} />
@@ -317,14 +337,16 @@ export const DigitalTicketCard = ({
 
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
               <span style={{ fontSize: '12px', color: C.gold, fontFamily: 'Space Grotesk, monospace', fontWeight: 800, letterSpacing: '0.5px' }}>
-                Pass Code: {ticketCode}
+                {pendingCash ? `Booking ID: ${bookingRef}` : `Pass Code: ${ticketCode}`}
               </span>
               <span style={{ fontSize: '10px', color: C.muted, textAlign: 'center' }}>
-                {ticketUsed
-                  ? 'This unique QR has already been used for entry'
-                  : passTotal > 1
-                    ? `Each of the ${passTotal} tickets has its own QR. Share this pass with one attendee.`
-                    : 'Show this cryptographic QR code at the turnstile gate scanner'}
+                {pendingCash
+                  ? 'This hold stays open until an authorised administrator or organizer confirms cash. It does not expire.'
+                  : ticketUsed
+                    ? 'This unique QR has already been used for entry'
+                    : passTotal > 1
+                      ? `Each of the ${passTotal} tickets has its own QR. Share this pass with one attendee.`
+                      : 'Show this cryptographic QR code at the turnstile gate scanner'}
               </span>
             </div>
           </div>

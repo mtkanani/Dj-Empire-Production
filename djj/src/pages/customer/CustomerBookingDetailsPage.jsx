@@ -6,6 +6,7 @@ import { customerBookingService } from '../../services/customer/customerBookingS
 import { CustomerNavbar } from '../../components/customer/CustomerNavbar.jsx';
 import { Footer } from '../../components/Layout.jsx';
 import { PaymentStatusBadge } from '../../components/payment/PaymentStatusBadge.jsx';
+import { PaymentMethodChip } from '../../components/payment/PaymentMethodChip.jsx';
 import { TicketQrGrid } from '../../components/ticket/TicketQrGrid.jsx';
 import { TicketActions } from '../../components/ticket/TicketActions.jsx';
 import { formatCurrency } from '../../utils/formatters.js';
@@ -20,6 +21,7 @@ export default function CustomerBookingDetailsPage() {
   const [booking, setBooking] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [cashQrUrl, setCashQrUrl] = useState(null);
 
   // Cancellation Modal State
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -34,6 +36,14 @@ export default function CustomerBookingDetailsPage() {
         const res = await customerBookingService.getMyBookingById(id);
         const data = res.data || res;
         setBooking(data);
+        if (data.paymentGateway === 'CASH' && data.paymentStatus !== 'CASH_RECEIVED' && data.paymentStatus !== 'Paid') {
+          try {
+            const qr = await customerBookingService.getCashVerificationQr(data.id);
+            setCashQrUrl(URL.createObjectURL(qr.blob || qr));
+          } catch {
+            setCashQrUrl(null);
+          }
+        }
       } catch (err) {
         setError(err.message || 'Unable to load booking details.');
       } finally {
@@ -42,6 +52,12 @@ export default function CustomerBookingDetailsPage() {
     };
 
     if (id) fetchBookingDetails();
+    return () => {
+      setCashQrUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+    };
   }, [id]);
 
   // Cancel Booking Action Handler
@@ -91,7 +107,15 @@ export default function CustomerBookingDetailsPage() {
 
   const event = booking.event || {};
   const bookingRef = booking.bookingNumber || booking.id;
-  const isCancellable = booking.bookingStatus === 'Confirmed' || booking.bookingStatus === 'Pending';
+  const isCashPending =
+    booking.paymentGateway === 'CASH' &&
+    booking.paymentStatus !== 'CASH_RECEIVED' &&
+    booking.paymentStatus !== 'Paid';
+  const isCancellable =
+    booking.bookingStatus === 'Confirmed' ||
+    booking.bookingStatus === 'Pending' ||
+    booking.bookingStatus === 'AwaitingPayment' ||
+    booking.bookingStatus === 'Reserved';
   const primarySchedule = getPrimarySchedule(event);
 
   return (
@@ -136,7 +160,10 @@ export default function CustomerBookingDetailsPage() {
                 #{bookingRef}
               </h2>
             </div>
-            <PaymentStatusBadge status={booking.bookingStatus} />
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
+              <PaymentMethodChip booking={booking} />
+              <PaymentStatusBadge status={booking.displayPaymentStatus || booking.paymentStatus || booking.bookingStatus} gateway={booking.paymentGateway} />
+            </div>
           </div>
 
           {/* Event Brief */}
@@ -162,6 +189,29 @@ export default function CustomerBookingDetailsPage() {
             </div>
           </div>
 
+          {booking.attendees?.length > 0 && (
+            <div>
+              <h4 style={{ margin: '0 0 8px', fontFamily: 'Space Grotesk, sans-serif' }}>Attendees</h4>
+              <ol style={{ margin: 0, paddingLeft: '18px', color: C.text }}>
+                {booking.attendees.map((a) => (
+                  <li key={a.id || a.attendeeIndex}>{a.fullName}</li>
+                ))}
+              </ol>
+            </div>
+          )}
+
+          {isCashPending && (
+            <div style={{ textAlign: 'center', padding: '16px', border: `1px solid ${C.borderGold}`, borderRadius: '16px' }}>
+              <p style={{ color: C.gold, fontWeight: 700, marginTop: 0 }}>Pending cash verification</p>
+              <p style={{ color: C.muted, fontSize: 13, marginTop: 0 }}>
+                Show this Booking ID and QR to the authorised administrator or organizer when paying cash. This hold does not expire. This is not a payment confirmation.
+              </p>
+              {cashQrUrl && (
+                <img src={cashQrUrl} alt="Cash verification QR" width={200} height={200} style={{ background: '#fff', borderRadius: 12 }} />
+              )}
+            </div>
+          )}
+
           {['Confirmed', 'CheckedIn'].includes(booking.bookingStatus) ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', background: '#090B10', border: `1px solid ${C.borderGold}`, borderRadius: '20px', padding: '24px' }}>
               <span style={{ fontSize: '12px', color: C.gold, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', textAlign: 'center' }}>
@@ -176,9 +226,11 @@ export default function CustomerBookingDetailsPage() {
               </span>
             </div>
           ) : (
-            <div style={{ background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: '16px', padding: '20px', textAlign: 'center', color: C.muted, fontSize: '13px' }}>
-              QR entry passes will activate upon payment confirmation.
-            </div>
+            !isCashPending && (
+              <div style={{ background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: '16px', padding: '20px', textAlign: 'center', color: C.muted, fontSize: '13px' }}>
+                QR entry passes will activate upon payment confirmation.
+              </div>
+            )
           )}
 
           {/* Purchased Ticket Tier Breakdown */}
@@ -224,7 +276,7 @@ export default function CustomerBookingDetailsPage() {
               <span style={{ color: C.text }}>{formatCurrency(booking.gstAmount || 0, booking.currency)}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', color: C.gold, fontSize: '16px', fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', borderTop: `1px solid ${C.borderGold}`, paddingTop: '12px', marginTop: '4px' }}>
-              <span>Total Paid Amount</span>
+              <span>{isCashPending ? 'Amount Due' : 'Total Paid Amount'}</span>
               <span>{formatCurrency(booking.totalAmount || 0, booking.currency)}</span>
             </div>
           </div>

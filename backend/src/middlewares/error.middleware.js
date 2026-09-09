@@ -28,7 +28,11 @@ export const errorHandler = (err, req, res, next) => {
     }));
   }
 
-  // Handle Prisma Database Known Errors
+  // Handle Multer upload errors
+  if (err?.name === 'MulterError') {
+    statusCode = HTTP_STATUS.BAD_REQUEST;
+    message = err.code === 'LIMIT_FILE_SIZE' ? 'Identity document exceeds the maximum file size of 5 MB' : 'File upload failed';
+  }
   if (err.code && err.code.startsWith('P')) {
     statusCode = HTTP_STATUS.BAD_REQUEST;
     message = `Database operation error (${err.code})`;
