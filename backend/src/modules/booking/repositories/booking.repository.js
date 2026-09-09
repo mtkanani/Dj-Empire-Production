@@ -394,7 +394,7 @@ export class BookingRepository {
     } = params;
 
     const pageNumber = Math.max(1, parseInt(page, 10));
-    const limitNumber = Math.max(1, Math.min(100, parseInt(limit, 10)));
+    const limitNumber = Math.max(1, Math.min(50, parseInt(limit, 10)));
     const skip = (pageNumber - 1) * limitNumber;
 
     const whereClause = {};
@@ -421,22 +421,21 @@ export class BookingRepository {
         include: {
           customer: { select: { id: true, email: true, firstName: true, lastName: true, phone: true } },
           event: {
-            include: {
-              venue: true,
-              city: true,
-              schedules: { orderBy: { startDate: 'asc' } },
-              images: true,
-              eventVenue: true,
+            select: {
+              id: true,
+              title: true,
+              venue: { select: { id: true, name: true } },
+              city: { select: { id: true, name: true } },
             },
           },
           items: {
-            include: { ticketType: true, section: true },
-          },
-          tickets: {
-            include: { ticketType: true, seats: true },
-          },
-          attendees: {
-            orderBy: { attendeeIndex: 'asc' },
+            select: {
+              id: true,
+              quantity: true,
+              unitPrice: true,
+              ticketType: { select: { id: true, name: true, price: true } },
+              section: { select: { id: true, name: true } },
+            },
           },
         },
         orderBy: { [sortBy]: sortOrder.toLowerCase() === 'asc' ? 'asc' : 'desc' },

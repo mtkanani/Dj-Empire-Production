@@ -595,6 +595,7 @@ model Booking {
 
   @@index([legacyBookingNumber])
   @@index([paymentGateway, paymentStatus])
+  @@index([eventId, createdAt])
 }
 
 // Per-Ticket Attendee Identity Model
@@ -697,6 +698,9 @@ model Payment {
 
   refunds  Refund[]
   invoices Invoice[]
+
+  @@index([bookingId])
+  @@index([eventId, createdAt])
 }
 
 // Refund Model

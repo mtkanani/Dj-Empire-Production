@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileText, Search, Banknote } from 'lucide-react';
+import { FileText, Search, Banknote, ChevronLeft, ChevronRight } from 'lucide-react';
 import { C } from '../../constants/theme.js';
 import { organizerBookingService } from '../../services/organizer/organizerBookingService.js';
 import { PaymentStatusBadge } from '../../components/payment/PaymentStatusBadge.jsx';
@@ -39,16 +39,23 @@ export default function InvoicesPage() {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [meta, setMeta] = useState({ total: 0, totalPages: 1 });
   const [error, setError] = useState(null);
 
   const fetchInvoices = async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await organizerBookingService.getOrganizerBookings({ limit: 100 });
+      const res = await organizerBookingService.getOrganizerBookings({
+        page,
+        limit: 10,
+        bookingNumber: search.trim() || undefined,
+      });
       const data = res.data || res;
       const list = Array.isArray(data) ? data : data.bookings || [];
       setBookings(list);
+      if (res.meta) setMeta(res.meta);
     } catch (err) {
       setError(err.message || 'Unable to load invoices.');
     } finally {
@@ -58,7 +65,7 @@ export default function InvoicesPage() {
 
   useEffect(() => {
     fetchInvoices();
-  }, []);
+  }, [page, search]);
 
   const filteredInvoices = bookings.filter((b) => {
     const hay = [
@@ -90,9 +97,12 @@ export default function InvoicesPage() {
         <Search size={16} color={C.muted} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
         <input
           type="text"
-          placeholder="Search booking, customer, or method..."
+          placeholder="Search booking ID..."
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1);
+          }}
           style={{ width: '100%', padding: '8px 12px 8px 36px', background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: '12px', color: C.text, fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
         />
       </div>
@@ -178,6 +188,31 @@ export default function InvoicesPage() {
               })}
             </tbody>
           </table>
+          {meta.totalPages > 1 && (
+            <div style={{ padding: '14px 20px', borderTop: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: '12px', color: C.muted }}>
+                Showing page {page} of {meta.totalPages}
+              </span>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  style={{ padding: '6px 12px', background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: '8px', color: page <= 1 ? C.muted : C.text, cursor: page <= 1 ? 'not-allowed' : 'pointer' }}
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <button
+                  type="button"
+                  disabled={page >= meta.totalPages}
+                  onClick={() => setPage((p) => Math.min(meta.totalPages, p + 1))}
+                  style={{ padding: '6px 12px', background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: '8px', color: page >= meta.totalPages ? C.muted : C.text, cursor: page >= meta.totalPages ? 'not-allowed' : 'pointer' }}
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

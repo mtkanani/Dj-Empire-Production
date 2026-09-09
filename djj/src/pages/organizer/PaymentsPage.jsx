@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CreditCard, Search, Filter, RefreshCw, Eye } from 'lucide-react';
+import { CreditCard, Search, Filter, RefreshCw, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
 import { C } from '../../constants/theme.js';
 import { financialService } from '../../services/organizer/financialService.js';
 import { eventService as organizerEventService } from '../../services/organizer/eventService.js';
@@ -31,6 +31,8 @@ export default function PaymentsPage() {
   const [eventFilter, setEventFilter] = useState('');
   const [gatewayFilter, setGatewayFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [page, setPage] = useState(1);
+  const [meta, setMeta] = useState({ total: 0, totalPages: 1 });
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -51,12 +53,15 @@ export default function PaymentsPage() {
     setError(null);
     try {
       const res = await financialService.getOrganizerPayments({
-        limit: 100,
+        page,
+        limit: 10,
         eventId: eventFilter || undefined,
         paymentStatus: statusFilter || undefined,
+        gateway: gatewayFilter || undefined,
       });
       const data = res.data || res;
       setPayments(Array.isArray(data) ? data : data.payments || []);
+      if (res.meta) setMeta(res.meta);
     } catch (err) {
       setError(err.message || 'Unable to load payment transactions.');
       setPayments([]);
@@ -67,7 +72,7 @@ export default function PaymentsPage() {
 
   useEffect(() => {
     fetchPayments();
-  }, [eventFilter, statusFilter]);
+  }, [page, eventFilter, statusFilter, gatewayFilter]);
 
   const filteredPayments = payments.filter((p) => {
     const haystack = [
@@ -86,9 +91,7 @@ export default function PaymentsPage() {
       .join(' ')
       .toLowerCase();
 
-    const matchesSearch = !search || haystack.includes(search.toLowerCase());
-    const matchesGateway = !gatewayFilter || String(p.gateway || p.paymentMethod || '').toUpperCase() === gatewayFilter;
-    return matchesSearch && matchesGateway;
+    return !search || haystack.includes(search.toLowerCase());
   });
 
   return (
@@ -115,9 +118,9 @@ export default function PaymentsPage() {
             />
           </div>
 
-          <select
+            <select
             value={eventFilter}
-            onChange={(e) => setEventFilter(e.target.value)}
+            onChange={(e) => { setEventFilter(e.target.value); setPage(1); }}
             style={{ padding: '8px 12px', background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: '12px', color: C.text, fontSize: '13px', outline: 'none' }}
           >
             <option value="">All Events</option>
@@ -130,7 +133,7 @@ export default function PaymentsPage() {
             <CreditCard size={16} color={C.gold} />
             <select
               value={gatewayFilter}
-              onChange={(e) => setGatewayFilter(e.target.value)}
+              onChange={(e) => { setGatewayFilter(e.target.value); setPage(1); }}
               style={{ background: 'transparent', border: 'none', color: C.text, fontSize: '13px', outline: 'none' }}
             >
               <option value="" style={{ background: C.bgCard }}>All Methods</option>
@@ -145,7 +148,7 @@ export default function PaymentsPage() {
             <Filter size={16} color={C.blue} />
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
               style={{ background: 'transparent', border: 'none', color: C.text, fontSize: '13px', outline: 'none' }}
             >
               <option value="" style={{ background: C.bgCard }}>All Statuses</option>
@@ -268,6 +271,31 @@ export default function PaymentsPage() {
               ))}
             </tbody>
           </table>
+          {meta.totalPages > 1 && (
+            <div style={{ padding: '14px 20px', borderTop: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: '12px', color: C.muted }}>
+                Showing page {page} of {meta.totalPages}
+              </span>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  style={{ padding: '6px 12px', background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: '8px', color: page <= 1 ? C.muted : C.text, cursor: page <= 1 ? 'not-allowed' : 'pointer' }}
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <button
+                  type="button"
+                  disabled={page >= meta.totalPages}
+                  onClick={() => setPage((p) => Math.min(meta.totalPages, p + 1))}
+                  style={{ padding: '6px 12px', background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: '8px', color: page >= meta.totalPages ? C.muted : C.text, cursor: page >= meta.totalPages ? 'not-allowed' : 'pointer' }}
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

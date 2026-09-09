@@ -54,9 +54,9 @@ export class PaymentRepository {
   }
 
   static async findByOrganizer(organizerId, params = {}) {
-    const { page = 1, limit = 50, paymentStatus, eventId } = params;
+    const { page = 1, limit = 10, paymentStatus, eventId, gateway } = params;
     const pageNumber = Math.max(1, parseInt(page, 10) || 1);
-    const limitNumber = Math.max(1, Math.min(200, parseInt(limit, 10) || 50));
+    const limitNumber = Math.max(1, Math.min(50, parseInt(limit, 10) || 10));
     const skip = (pageNumber - 1) * limitNumber;
 
     const andFilters = [
@@ -69,11 +69,12 @@ export class PaymentRepository {
     ];
     if (paymentStatus) andFilters.push({ paymentStatus });
     if (eventId) andFilters.push({ eventId });
+    if (gateway) andFilters.push({ gateway });
     const whereClause = { AND: andFilters };
 
     const customerSelect = { id: true, email: true, firstName: true, lastName: true, phone: true };
 
-    const payments = await prisma.payment.findMany({
+    const paymentQuery = {
       where: whereClause,
       include: {
         user: { select: customerSelect },
@@ -96,31 +97,59 @@ export class PaymentRepository {
             event: { select: { id: true, title: true } },
           },
         },
-        refunds: true,
+        refunds: { select: { id: true, refundAmount: true, refundStatus: true } },
       },
       orderBy: { createdAt: 'desc' },
-    });
+      skip,
+      take: limitNumber,
+    };
+
+    const [total, payments] = await Promise.all([
+      prisma.payment.count({ where: whereClause }),
+      prisma.payment.findMany(paymentQuery),
+    ]);
+
+    const includeCashHolds =
+      pageNumber === 1 && !paymentStatus && (!gateway || String(gateway).toUpperCase() === 'CASH');
 
     const cashWhere = {
       paymentGateway: 'CASH',
+      paymentStatus: PaymentStatus.Pending,
       event: { organizerId },
     };
     if (eventId) cashWhere.eventId = eventId;
 
-    const cashBookings = await prisma.booking.findMany({
-      where: cashWhere,
-      include: {
-        customer: { select: customerSelect },
-        event: { select: { id: true, title: true, organizerId: true } },
-        payments: { select: { id: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    const cashBookings = includeCashHolds
+      ? await prisma.booking.findMany({
+          where: cashWhere,
+          select: {
+            id: true,
+            bookingNumber: true,
+            bookingStatus: true,
+            paymentStatus: true,
+            currency: true,
+            subtotal: true,
+            couponDiscount: true,
+            discount: true,
+            gstAmount: true,
+            platformFee: true,
+            bookingFee: true,
+            serviceCharge: true,
+            totalAmount: true,
+            createdAt: true,
+            cashVerifiedAt: true,
+            customer: { select: customerSelect },
+            event: { select: { id: true, title: true, organizerId: true } },
+            payments: { select: { id: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 25,
+        })
+      : [];
 
     const paymentBookingIds = new Set(payments.map((p) => p.bookingId).filter(Boolean));
     const synthetic = cashBookings
       .filter((booking) => !(booking.payments || []).length && !paymentBookingIds.has(booking.id))
-      .filter((booking) => !paymentStatus || booking.paymentStatus === paymentStatus)
       .map((booking) => ({
         id: `cash-hold-${booking.id}`,
         paymentNumber: booking.bookingNumber,
@@ -150,15 +179,16 @@ export class PaymentRepository {
         paymentDate: booking.cashVerifiedAt || null,
       }));
 
-    const merged = [...payments, ...synthetic].sort(
-      (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
-    );
-    const total = merged.length;
-    const data = merged.slice(skip, skip + limitNumber);
+    const data = [...synthetic, ...payments];
 
     return {
       data,
-      meta: { page: pageNumber, limit: limitNumber, total, totalPages: Math.ceil(total / limitNumber) || 1 },
+      meta: {
+        page: pageNumber,
+        limit: limitNumber,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / limitNumber) || 1),
+      },
     };
   }
 

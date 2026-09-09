@@ -127,11 +127,12 @@ export class OrganizerController {
 
   // Booking Dashboard
   static getBookings = asyncHandler(async (req, res) => {
-    const data = await OrganizerService.getBookings(req.user.userId, req.user.role);
+    const result = await OrganizerService.getBookings(req.user.userId, req.user.role, req.query);
     return ApiResponse.success(res, {
       statusCode: HTTP_STATUS.OK,
       message: 'Organizer event bookings retrieved successfully',
-      data,
+      data: result.data,
+      meta: result.meta,
     });
   });
 

@@ -125,44 +125,76 @@ export class OrganizerEventRepository {
   }
 
   // ==================== BOOKING & SALES QUERY ====================
-  static async findBookingsByOrganizer(organizerId, role = null) {
+  static async findBookingsByOrganizer(organizerId, role = null, query = {}) {
     const isAdmin = role === 'SUPER_ADMIN' || role === 'ADMIN';
+    const pageNumber = Math.max(1, parseInt(query.page, 10) || 1);
+    const limitNumber = Math.max(1, Math.min(50, parseInt(query.limit, 10) || 10));
+    const skip = (pageNumber - 1) * limitNumber;
 
-    return prisma.booking.findMany({
-      where: isAdmin ? {} : { event: { organizerId } },
-      include: {
-        customer: {
-          select: {
-            id: true,
-            email: true,
-            firstName: true,
-            lastName: true,
-            phone: true,
+    const whereClause = isAdmin ? {} : { event: { organizerId } };
+    if (query.eventId) whereClause.eventId = query.eventId;
+    if (query.bookingStatus) whereClause.bookingStatus = query.bookingStatus;
+    if (query.paymentStatus) whereClause.paymentStatus = query.paymentStatus;
+    if (query.paymentGateway) whereClause.paymentGateway = query.paymentGateway;
+    if (query.bookingNumber) {
+      whereClause.OR = [
+        { bookingNumber: { contains: String(query.bookingNumber) } },
+        { legacyBookingNumber: { contains: String(query.bookingNumber) } },
+      ];
+    }
+
+    const [total, data] = await Promise.all([
+      prisma.booking.count({ where: whereClause }),
+      prisma.booking.findMany({
+        where: whereClause,
+        select: {
+          id: true,
+          bookingNumber: true,
+          quantity: true,
+          currency: true,
+          subtotal: true,
+          discount: true,
+          couponDiscount: true,
+          platformFee: true,
+          bookingFee: true,
+          serviceCharge: true,
+          gstAmount: true,
+          totalAmount: true,
+          paymentStatus: true,
+          bookingStatus: true,
+          paymentGateway: true,
+          createdAt: true,
+          customer: {
+            select: { id: true, email: true, firstName: true, lastName: true, phone: true },
+          },
+          event: {
+            select: { id: true, title: true, status: true },
+          },
+          items: {
+            select: {
+              id: true,
+              quantity: true,
+              unitPrice: true,
+              ticketType: { select: { id: true, name: true, price: true } },
+              section: { select: { id: true, name: true } },
+            },
           },
         },
-        event: {
-          select: {
-            id: true,
-            title: true,
-            status: true,
-            schedules: true,
-          },
-        },
-        items: {
-          include: {
-            ticketType: true,
-            section: true,
-          },
-        },
-        tickets: {
-          include: {
-            ticketType: true,
-          },
-        },
-        payments: true,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limitNumber,
+      }),
+    ]);
+
+    return {
+      data,
+      meta: {
+        page: pageNumber,
+        limit: limitNumber,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / limitNumber) || 1),
       },
-      orderBy: { createdAt: 'desc' },
-    });
+    };
   }
 
   static async findBookingById(id, organizerId) {

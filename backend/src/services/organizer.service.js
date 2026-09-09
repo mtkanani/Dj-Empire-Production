@@ -195,9 +195,12 @@ export class OrganizerService {
   }
 
   // ==================== BOOKINGS & SALES ====================
-  static async getBookings(organizerId, role = null) {
-    const bookings = await OrganizerEventRepository.findBookingsByOrganizer(organizerId, role);
-    return bookings.map((booking) => presentBooking(booking, { isStaff: true }));
+  static async getBookings(organizerId, role = null, query = {}) {
+    const result = await OrganizerEventRepository.findBookingsByOrganizer(organizerId, role, query);
+    return {
+      data: result.data.map((booking) => presentBooking(booking, { isStaff: true })),
+      meta: result.meta,
+    };
   }
 
   static async getBookingById(bookingId, organizerId) {

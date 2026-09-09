@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import CustomerRegister from '../pages/auth/CustomerRegister.jsx';
 import CustomerLogin from '../pages/auth/CustomerLogin.jsx';
@@ -17,97 +17,81 @@ import ServicesView from '../pages/ServicesView.jsx';
 import AboutView from '../pages/AboutView.jsx';
 import PortfolioView from '../pages/PortfolioView.jsx';
 import ContactView from '../pages/ContactView.jsx';
-import { CustomerView, ClientView } from '../pages/AppViews.jsx';
-import ScannerAppView from '../pages/ScannerAppView.jsx';
 
-// Phase 10 — Customer Event Discovery Pages
-import CustomerHomePage from '../pages/customer/CustomerHomePage.jsx';
-import CustomerEventListingPage from '../pages/customer/CustomerEventListingPage.jsx';
-import CustomerEventDetailsPage from '../pages/customer/CustomerEventDetailsPage.jsx';
-
-// Phase 11 — Customer Booking & Payment Pages
 import { BookingProvider } from '../context/BookingContext.jsx';
-import TicketSelectionPage from '../pages/customer/TicketSelectionPage.jsx';
-import CustomerDetailsPage from '../pages/customer/CustomerDetailsPage.jsx';
-import OrderSummaryPage from '../pages/customer/OrderSummaryPage.jsx';
-import PaymentMethodPage from '../pages/customer/PaymentMethodPage.jsx';
-import BookingConfirmationPage from '../pages/customer/BookingConfirmationPage.jsx';
-import PaymentFailedPage from '../pages/customer/PaymentFailedPage.jsx';
-
-// Phase 12 — Payment Abstraction & History Pages
-import CustomerPaymentHistoryPage from '../pages/customer/CustomerPaymentHistoryPage.jsx';
-import CustomerPaymentDetailsPage from '../pages/customer/CustomerPaymentDetailsPage.jsx';
-import InvoicePage from '../pages/customer/InvoicePage.jsx';
-
-// Phase 13 — Booking Management Pages
-import CustomerBookingsPage from '../pages/customer/CustomerBookingsPage.jsx';
-import CustomerBookingDetailsPage from '../pages/customer/CustomerBookingDetailsPage.jsx';
-import OrganizerBookingDetailsPage from '../pages/organizer/BookingDetailsPage.jsx';
-import CashVerifyPage from '../pages/organizer/CashVerifyPage.jsx';
-
-// Phase 14 — Digital QR Tickets Page & Profile Page
-import MyTicketsPage from '../pages/customer/MyTicketsPage.jsx';
-import CustomerProfilePage from '../pages/customer/CustomerProfilePage.jsx';
-
-// Phase 15 — Scanner Users Page
-import ScannerUsersPage from '../pages/organizer/ScannerUsersPage.jsx';
-
-// Phase 16 — Attendance & Check-In Analytics Pages
-import AttendanceAnalyticsPage from '../pages/organizer/AttendanceAnalyticsPage.jsx';
-import CheckInHistoryPage from '../pages/organizer/CheckInHistoryPage.jsx';
-
-// Phase 17 — Financial Management Pages
-import FinancialDashboardPage from '../pages/organizer/FinancialDashboardPage.jsx';
-
-// Admin Imports
 import { AdminLayout } from '../layouts/AdminLayout.jsx';
-import AdminDashboard from '../pages/admin/AdminDashboard.jsx';
-import OrganizersPage from '../pages/admin/OrganizersPage.jsx';
-import OrganizerDetailsPage from '../pages/admin/OrganizerDetailsPage.jsx';
-import CustomersPage from '../pages/admin/CustomersPage.jsx';
-import CustomerDetailsPageAdmin from '../pages/admin/CustomerDetailsPage.jsx';
-import EventsPage from '../pages/admin/EventsPage.jsx';
-import CategoriesPage from '../pages/admin/CategoriesPage.jsx';
-import CitiesPage from '../pages/admin/CitiesPage.jsx';
-import VenuesPage from '../pages/admin/VenuesPage.jsx';
-import TaxSettingsPage from '../pages/admin/TaxSettingsPage.jsx';
-import PaymentsPage from '../pages/admin/PaymentsPage.jsx';
-import AuditLogsPage from '../pages/admin/AuditLogsPage.jsx';
-import NotificationsPage from '../pages/admin/NotificationsPage.jsx';
-import SettingsPage from '../pages/admin/SettingsPage.jsx';
-
-// Phase 6, 7, 8 & 9 — Organizer Panel Imports
 import { OrganizerLayout } from '../layouts/OrganizerLayout.jsx';
-import OrganizerDashboard from '../pages/organizer/OrganizerDashboard.jsx';
-import MyEventsPage from '../pages/organizer/MyEventsPage.jsx';
-import CreateEventPage from '../pages/organizer/CreateEventPage.jsx';
-import EditEventPage from '../pages/organizer/EditEventPage.jsx';
-import EventDetailsPage from '../pages/organizer/EventDetailsPage.jsx';
-import EventPreviewPage from '../pages/organizer/EventPreviewPage.jsx';
-
-// Phase 8 — Ticketing System Pages
-import TicketingEventsPage from '../pages/organizer/TicketingEventsPage.jsx';
-import EventTicketingPage from '../pages/organizer/EventTicketingPage.jsx';
-import CreateTicketPage from '../pages/organizer/CreateTicketPage.jsx';
-import EditTicketPage from '../pages/organizer/EditTicketPage.jsx';
-import TicketDetailsPage from '../pages/organizer/TicketDetailsPage.jsx';
-
-// Phase 9 — Seating & Seat Map Pages
-import EventSeatingPage from '../pages/organizer/EventSeatingPage.jsx';
-import SeatMapManagementPage from '../pages/organizer/SeatMapManagementPage.jsx';
-import SeatMapPreviewPage from '../pages/organizer/SeatMapPreviewPage.jsx';
-
-import BookingsPage from '../pages/organizer/BookingsPage.jsx';
-import OrganizerPaymentsPage from '../pages/organizer/PaymentsPage.jsx';
-import InvoicesPage from '../pages/organizer/InvoicesPage.jsx';
-import OrganizerCheckInPage from '../pages/organizer/CheckInPage.jsx';
-import GatesPage from '../pages/organizer/GatesPage.jsx';
-import ScannersPage from '../pages/organizer/ScannersPage.jsx';
-import AttendancePage from '../pages/organizer/AttendancePage.jsx';
-import ProfilePage from '../pages/organizer/ProfilePage.jsx';
-import OrganizerSettingsPage from '../pages/organizer/SettingsPage.jsx';
-
 import { ProtectedRoute, PublicOnlyRoute } from './ProtectedRoute.jsx';
+
+const ClientView = lazy(() => import('../pages/AppViews.jsx').then((m) => ({ default: m.ClientView })));
+const ScannerAppView = lazy(() => import('../pages/ScannerAppView.jsx'));
+
+const CustomerEventListingPage = lazy(() => import('../pages/customer/CustomerEventListingPage.jsx'));
+const CustomerEventDetailsPage = lazy(() => import('../pages/customer/CustomerEventDetailsPage.jsx'));
+const TicketSelectionPage = lazy(() => import('../pages/customer/TicketSelectionPage.jsx'));
+const CustomerDetailsPage = lazy(() => import('../pages/customer/CustomerDetailsPage.jsx'));
+const OrderSummaryPage = lazy(() => import('../pages/customer/OrderSummaryPage.jsx'));
+const PaymentMethodPage = lazy(() => import('../pages/customer/PaymentMethodPage.jsx'));
+const BookingConfirmationPage = lazy(() => import('../pages/customer/BookingConfirmationPage.jsx'));
+const PaymentFailedPage = lazy(() => import('../pages/customer/PaymentFailedPage.jsx'));
+const CustomerPaymentHistoryPage = lazy(() => import('../pages/customer/CustomerPaymentHistoryPage.jsx'));
+const CustomerPaymentDetailsPage = lazy(() => import('../pages/customer/CustomerPaymentDetailsPage.jsx'));
+const InvoicePage = lazy(() => import('../pages/customer/InvoicePage.jsx'));
+const CustomerBookingsPage = lazy(() => import('../pages/customer/CustomerBookingsPage.jsx'));
+const CustomerBookingDetailsPage = lazy(() => import('../pages/customer/CustomerBookingDetailsPage.jsx'));
+const MyTicketsPage = lazy(() => import('../pages/customer/MyTicketsPage.jsx'));
+const CustomerProfilePage = lazy(() => import('../pages/customer/CustomerProfilePage.jsx'));
+
+const OrganizerBookingDetailsPage = lazy(() => import('../pages/organizer/BookingDetailsPage.jsx'));
+const CashVerifyPage = lazy(() => import('../pages/organizer/CashVerifyPage.jsx'));
+const ScannerUsersPage = lazy(() => import('../pages/organizer/ScannerUsersPage.jsx'));
+const AttendanceAnalyticsPage = lazy(() => import('../pages/organizer/AttendanceAnalyticsPage.jsx'));
+const CheckInHistoryPage = lazy(() => import('../pages/organizer/CheckInHistoryPage.jsx'));
+const FinancialDashboardPage = lazy(() => import('../pages/organizer/FinancialDashboardPage.jsx'));
+const OrganizerDashboard = lazy(() => import('../pages/organizer/OrganizerDashboard.jsx'));
+const MyEventsPage = lazy(() => import('../pages/organizer/MyEventsPage.jsx'));
+const CreateEventPage = lazy(() => import('../pages/organizer/CreateEventPage.jsx'));
+const EditEventPage = lazy(() => import('../pages/organizer/EditEventPage.jsx'));
+const EventDetailsPage = lazy(() => import('../pages/organizer/EventDetailsPage.jsx'));
+const EventPreviewPage = lazy(() => import('../pages/organizer/EventPreviewPage.jsx'));
+const TicketingEventsPage = lazy(() => import('../pages/organizer/TicketingEventsPage.jsx'));
+const EventTicketingPage = lazy(() => import('../pages/organizer/EventTicketingPage.jsx'));
+const CreateTicketPage = lazy(() => import('../pages/organizer/CreateTicketPage.jsx'));
+const EditTicketPage = lazy(() => import('../pages/organizer/EditTicketPage.jsx'));
+const TicketDetailsPage = lazy(() => import('../pages/organizer/TicketDetailsPage.jsx'));
+const EventSeatingPage = lazy(() => import('../pages/organizer/EventSeatingPage.jsx'));
+const SeatMapManagementPage = lazy(() => import('../pages/organizer/SeatMapManagementPage.jsx'));
+const SeatMapPreviewPage = lazy(() => import('../pages/organizer/SeatMapPreviewPage.jsx'));
+const BookingsPage = lazy(() => import('../pages/organizer/BookingsPage.jsx'));
+const OrganizerPaymentsPage = lazy(() => import('../pages/organizer/PaymentsPage.jsx'));
+const InvoicesPage = lazy(() => import('../pages/organizer/InvoicesPage.jsx'));
+const OrganizerCheckInPage = lazy(() => import('../pages/organizer/CheckInPage.jsx'));
+const GatesPage = lazy(() => import('../pages/organizer/GatesPage.jsx'));
+const ScannersPage = lazy(() => import('../pages/organizer/ScannersPage.jsx'));
+const AttendancePage = lazy(() => import('../pages/organizer/AttendancePage.jsx'));
+const ProfilePage = lazy(() => import('../pages/organizer/ProfilePage.jsx'));
+const OrganizerSettingsPage = lazy(() => import('../pages/organizer/SettingsPage.jsx'));
+
+const AdminDashboard = lazy(() => import('../pages/admin/AdminDashboard.jsx'));
+const OrganizersPage = lazy(() => import('../pages/admin/OrganizersPage.jsx'));
+const OrganizerDetailsPage = lazy(() => import('../pages/admin/OrganizerDetailsPage.jsx'));
+const CustomersPage = lazy(() => import('../pages/admin/CustomersPage.jsx'));
+const CustomerDetailsPageAdmin = lazy(() => import('../pages/admin/CustomerDetailsPage.jsx'));
+const EventsPage = lazy(() => import('../pages/admin/EventsPage.jsx'));
+const CategoriesPage = lazy(() => import('../pages/admin/CategoriesPage.jsx'));
+const CitiesPage = lazy(() => import('../pages/admin/CitiesPage.jsx'));
+const VenuesPage = lazy(() => import('../pages/admin/VenuesPage.jsx'));
+const TaxSettingsPage = lazy(() => import('../pages/admin/TaxSettingsPage.jsx'));
+const PaymentsPage = lazy(() => import('../pages/admin/PaymentsPage.jsx'));
+const AuditLogsPage = lazy(() => import('../pages/admin/AuditLogsPage.jsx'));
+const NotificationsPage = lazy(() => import('../pages/admin/NotificationsPage.jsx'));
+const SettingsPage = lazy(() => import('../pages/admin/SettingsPage.jsx'));
+
+const RouteFallback = () => (
+  <div style={{ minHeight: '40vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888', fontSize: 14 }}>
+    Loading…
+  </div>
+);
 
 const BookingLayoutWrapper = () => (
   <BookingProvider>
@@ -117,6 +101,7 @@ const BookingLayoutWrapper = () => (
 
 export default function AppRoutes({ setView }) {
   return (
+    <Suspense fallback={<RouteFallback />}>
     <Routes>
       {/* Public Customer Discovery Pages */}
       <Route path="/" element={<HomeView setView={setView} />} />
@@ -396,5 +381,6 @@ export default function AppRoutes({ setView }) {
       {/* Fallback 404 Route */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </Suspense>
   );
 }
