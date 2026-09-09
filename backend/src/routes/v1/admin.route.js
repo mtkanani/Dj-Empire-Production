@@ -2,9 +2,11 @@ import { Router } from 'express';
 import { AdminController } from '../../controllers/admin.controller.js';
 import { TaxSettingController } from '../../controllers/taxSetting.controller.js';
 import { validate } from '../../middlewares/validate.middleware.js';
-import { authenticate, requireSuperAdmin } from '../../middlewares/auth.middleware.js';
+import { authenticate, authorize, requireSuperAdmin } from '../../middlewares/auth.middleware.js';
 import { authLimiter } from '../../middlewares/rateLimiter.middleware.js';
 import { adminLoginSchema } from '../../validators/auth.validator.js';
+import { CashVerificationController } from '../../modules/booking/controllers/cashVerification.controller.js';
+import { cashLookupQrSchema } from '../../modules/booking/validations/booking.validation.js';
 import {
   createCategorySchema,
   updateCategorySchema,
@@ -46,6 +48,24 @@ const router = Router();
  *         description: Login successful
  */
 router.post('/login', authLimiter, validate(adminLoginSchema), AdminController.adminLogin);
+
+// Cash verify lives under /admin/* so it must be registered BEFORE requireSuperAdmin.
+// Otherwise organizer tokens never reach the booking-router copies of these routes.
+const staffCash = authorize('SUPER_ADMIN', 'EVENT_ORGANIZER');
+router.get('/bookings/lookup', authenticate, staffCash, CashVerificationController.lookup);
+router.post(
+  '/bookings/lookup-qr',
+  authenticate,
+  staffCash,
+  validate(cashLookupQrSchema),
+  CashVerificationController.lookupQr
+);
+router.post(
+  '/bookings/:bookingNumber/verify-cash',
+  authenticate,
+  staffCash,
+  CashVerificationController.verify
+);
 
 // Protect all subsequent admin routes with Authentication & SUPER_ADMIN Authorization
 router.use(authenticate);

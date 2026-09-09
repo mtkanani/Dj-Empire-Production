@@ -14,7 +14,6 @@ import {
   createBookingSchema,
   confirmBookingSchema,
   cancelBookingSchema,
-  cashLookupQrSchema,
 } from '../validations/booking.validation.js';
 import { CashVerificationController } from '../controllers/cashVerification.controller.js';
 
@@ -149,22 +148,5 @@ router.get('/my-past-events', authorize('CUSTOMER'), MyBookingController.getMyPa
 // ==================== ORGANIZER BOOKINGS ====================
 router.get('/organizer/bookings', authorize('EVENT_ORGANIZER', 'SUPER_ADMIN'), OrganizerBookingController.getOrganizerBookings);
 router.get('/organizer/bookings/:bookingId', authorize('EVENT_ORGANIZER', 'SUPER_ADMIN'), OrganizerBookingController.getOrganizerBookingById);
-
-router.get(
-  '/admin/bookings/lookup',
-  authorize('SUPER_ADMIN', 'EVENT_ORGANIZER'),
-  CashVerificationController.lookup
-);
-router.post(
-  '/admin/bookings/lookup-qr',
-  authorize('SUPER_ADMIN', 'EVENT_ORGANIZER'),
-  validate(cashLookupQrSchema),
-  CashVerificationController.lookupQr
-);
-router.post(
-  '/admin/bookings/:bookingNumber/verify-cash',
-  authorize('SUPER_ADMIN', 'EVENT_ORGANIZER'),
-  CashVerificationController.verify
-);
 
 export default router;
