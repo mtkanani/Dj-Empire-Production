@@ -12,4 +12,6 @@ export const customerEventService = {
 
   // Master Cities for Filtering
   getCities: () => api.get('/customer/cities'),
+
+  getTaxSettings: () => api.get('/customer/tax-settings'),
 };

@@ -102,18 +102,6 @@ export class BookingService {
       });
     }
 
-    let unitPrice = event.price;
-    const targetTicketId = isValidObjectId(dto.ticketTypeId)
-      ? dto.ticketTypeId
-      : isValidObjectId(lineItems[0]?.ticketTypeId)
-      ? lineItems[0].ticketTypeId
-      : null;
-
-    if (targetTicketId) {
-      const ticketType = await TicketTypeRepository.findById(targetTicketId);
-      if (ticketType) unitPrice = ticketType.price;
-    }
-
     if (isValidObjectId(dto.sectionId)) {
       const section = await SectionRepository.findById(dto.sectionId);
       if (!section) throw new AppError('Specified Section not found', HTTP_STATUS.NOT_FOUND);
@@ -125,72 +113,97 @@ export class BookingService {
       }
     }
 
-    const taxCalc = await TaxSettingService.calculateOrderTax(totalQty, unitPrice);
-    let subtotal = taxCalc.subtotal;
+    const pricedLines = [];
+    for (const item of lineItems) {
+      if (!isValidObjectId(item.ticketTypeId)) continue;
+      const tt = await TicketTypeRepository.findById(item.ticketTypeId);
+      if (!tt) continue;
+      let itemSectionId = isValidObjectId(item.sectionId) ? item.sectionId : null;
+      if (!itemSectionId && isValidObjectId(tt.sectionId)) {
+        itemSectionId = tt.sectionId;
+      }
+      pricedLines.push({
+        ticketTypeId: item.ticketTypeId,
+        sectionId: itemSectionId,
+        quantity: item.quantity,
+        unitPrice: tt.price,
+        bookingFee: tt.bookingFee || 0,
+        platformFee: tt.platformFee || 0,
+        serviceCharge: tt.serviceCharge || 0,
+      });
+    }
+
+    if (pricedLines.length === 0) {
+      let unitPrice = event.price;
+      let defaultTicketTypeId = isValidObjectId(dto.ticketTypeId) ? dto.ticketTypeId : null;
+      let fees = { bookingFee: 0, platformFee: 0, serviceCharge: 0 };
+      if (defaultTicketTypeId) {
+        const ticketType = await TicketTypeRepository.findById(defaultTicketTypeId);
+        if (ticketType) {
+          unitPrice = ticketType.price;
+          fees = {
+            bookingFee: ticketType.bookingFee || 0,
+            platformFee: ticketType.platformFee || 0,
+            serviceCharge: ticketType.serviceCharge || 0,
+          };
+        }
+      } else {
+        const firstTicketType = await prisma.ticketType.findFirst({ where: { eventId: dto.eventId } });
+        defaultTicketTypeId = firstTicketType?.id || null;
+        if (firstTicketType) {
+          unitPrice = firstTicketType.price;
+          fees = {
+            bookingFee: firstTicketType.bookingFee || 0,
+            platformFee: firstTicketType.platformFee || 0,
+            serviceCharge: firstTicketType.serviceCharge || 0,
+          };
+        }
+      }
+      pricedLines.push({
+        ticketTypeId: defaultTicketTypeId,
+        sectionId: isValidObjectId(dto.sectionId) ? dto.sectionId : null,
+        quantity: dto.quantity || totalQty,
+        unitPrice,
+        ...fees,
+      });
+    }
+
+    const quote = await TaxSettingService.quoteOrderWithSettings(pricedLines);
     let couponDiscount = 0.0;
 
-    // Apply Coupon discount if provided
     if (dto.couponCode) {
-      const couponResult = await TicketingService.validateCoupon(dto.couponCode, subtotal);
+      const couponResult = await TicketingService.validateCoupon(dto.couponCode, quote.subtotal);
       if (couponResult.valid) {
         couponDiscount = couponResult.discountAmount;
       }
     }
 
-    const platformFee = taxCalc.platformFee;
-    const taxableSubtotal = Math.max(0, subtotal - couponDiscount + platformFee);
-    const gstAmount = parseFloat((taxableSubtotal * (taxCalc.gstRate / 100)).toFixed(2));
+    const platformFee = quote.platformFee;
+    const bookingFee = quote.bookingFee;
+    const serviceCharge = quote.serviceCharge;
+    const taxableSubtotal = Math.max(
+      0,
+      quote.subtotal - couponDiscount + platformFee + bookingFee + serviceCharge
+    );
+    const gstAmount = parseFloat((taxableSubtotal * (quote.gstRate / 100)).toFixed(2));
     const totalAmount = parseFloat((taxableSubtotal + gstAmount).toFixed(2));
+    const subtotal = quote.subtotal;
 
-    let bookingItems = [];
-    if (Array.isArray(dto.items) && dto.items.length > 0) {
-      for (const item of dto.items) {
-        let itemUnitPrice = 0;
-        let itemSectionId = isValidObjectId(item.sectionId) ? item.sectionId : null;
-
-        if (isValidObjectId(item.ticketTypeId)) {
-          const tt = await TicketTypeRepository.findById(item.ticketTypeId);
-          if (tt) {
-            itemUnitPrice = tt.price;
-            if (!itemSectionId && isValidObjectId(tt.sectionId)) {
-              itemSectionId = tt.sectionId;
-            }
-          }
-        }
-
-        if (isValidObjectId(item.ticketTypeId)) {
-          bookingItems.push({
-            ticketTypeId: item.ticketTypeId,
-            sectionId: itemSectionId,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice || itemUnitPrice,
-            discount: 0.0,
-            gst: parseFloat(((item.unitPrice || itemUnitPrice) * item.quantity * 0.18).toFixed(2)),
-            total: parseFloat(((item.unitPrice || itemUnitPrice) * item.quantity * 1.18).toFixed(2)),
-          });
-        }
-      }
-    }
-
-    if (bookingItems.length === 0) {
-      let defaultTicketTypeId = isValidObjectId(dto.ticketTypeId) ? dto.ticketTypeId : null;
-      if (!defaultTicketTypeId) {
-        const firstTicketType = await prisma.ticketType.findFirst({ where: { eventId: dto.eventId } });
-        defaultTicketTypeId = firstTicketType?.id || null;
-      }
-
-      bookingItems = [
-        {
-          ticketTypeId: defaultTicketTypeId,
-          sectionId: isValidObjectId(dto.sectionId) ? dto.sectionId : null,
-          quantity: dto.quantity || totalQty,
-          unitPrice,
-          discount: couponDiscount,
-          gst: gstAmount,
-          total: totalAmount,
-        },
-      ];
-    }
+    const bookingItems = pricedLines.map((item) => {
+      const lineSub = parseFloat((item.unitPrice * item.quantity).toFixed(2));
+      const share = subtotal > 0 ? lineSub / subtotal : 0;
+      const lineGst = parseFloat((gstAmount * share).toFixed(2));
+      const lineDiscount = parseFloat((couponDiscount * share).toFixed(2));
+      return {
+        ticketTypeId: item.ticketTypeId,
+        sectionId: item.sectionId,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        discount: lineDiscount,
+        gst: lineGst,
+        total: parseFloat((lineSub - lineDiscount + lineGst).toFixed(2)),
+      };
+    });
 
     // 4. Create Booking record, items, and attendees
     const booking = await BookingRepository.createBooking(
@@ -206,8 +219,8 @@ export class BookingService {
         discount: 0.0,
         couponDiscount,
         platformFee,
-        bookingFee: 10.0,
-        serviceCharge: 10.0,
+        bookingFee,
+        serviceCharge,
         gstAmount,
         totalAmount,
         notes: dto.notes || null,

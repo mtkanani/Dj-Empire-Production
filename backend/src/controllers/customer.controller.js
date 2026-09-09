@@ -1,4 +1,5 @@
 import { CustomerService } from '../services/customer.service.js';
+import { TaxSettingService } from '../services/taxSetting.service.js';
 import { ApiResponse } from '../utils/ApiResponse.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { HTTP_STATUS } from '../constants/httpStatusCodes.js';
@@ -58,6 +59,15 @@ export class CustomerController {
     return ApiResponse.success(res, {
       statusCode: HTTP_STATUS.OK,
       message: 'Event details retrieved successfully',
+      data,
+    });
+  });
+
+  static getPublicTaxSettings = asyncHandler(async (req, res) => {
+    const data = await TaxSettingService.getPublicTaxSettings();
+    return ApiResponse.success(res, {
+      statusCode: HTTP_STATUS.OK,
+      message: 'Checkout tax rates retrieved successfully',
       data,
     });
   });

@@ -271,8 +271,44 @@ export default function CustomerBookingDetailsPage() {
               <span>Ticket Subtotal ({booking.quantity || 1} tickets)</span>
               <span style={{ color: C.text }}>{formatCurrency(booking.subtotal || 0, booking.currency)}</span>
             </div>
+            {(booking.couponDiscount || 0) > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: C.muted }}>
+                <span>Discount</span>
+                <span style={{ color: C.text }}>-{formatCurrency(booking.couponDiscount, booking.currency)}</span>
+              </div>
+            )}
+            {(booking.platformFee || 0) > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: C.muted }}>
+                <span>Platform fee</span>
+                <span style={{ color: C.text }}>{formatCurrency(booking.platformFee, booking.currency)}</span>
+              </div>
+            )}
+            {(booking.bookingFee || 0) > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: C.muted }}>
+                <span>Booking fee</span>
+                <span style={{ color: C.text }}>{formatCurrency(booking.bookingFee, booking.currency)}</span>
+              </div>
+            )}
+            {(booking.serviceCharge || 0) > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: C.muted }}>
+                <span>Service charge</span>
+                <span style={{ color: C.text }}>{formatCurrency(booking.serviceCharge, booking.currency)}</span>
+              </div>
+            )}
             <div style={{ display: 'flex', justifyContent: 'space-between', color: C.muted }}>
-              <span>GST Tax (18%)</span>
+              <span>
+                GST
+                {(() => {
+                  const taxable =
+                    (booking.subtotal || 0) -
+                    (booking.couponDiscount || 0) +
+                    (booking.platformFee || 0) +
+                    (booking.bookingFee || 0) +
+                    (booking.serviceCharge || 0);
+                  const rate = taxable > 0 && booking.gstAmount ? ((booking.gstAmount / taxable) * 100).toFixed(2) : null;
+                  return rate ? ` (${rate}%)` : '';
+                })()}
+              </span>
               <span style={{ color: C.text }}>{formatCurrency(booking.gstAmount || 0, booking.currency)}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', color: C.gold, fontSize: '16px', fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', borderTop: `1px solid ${C.borderGold}`, paddingTop: '12px', marginTop: '4px' }}>

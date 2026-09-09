@@ -70,6 +70,7 @@ router.get('/categories', AdminController.getAllCategories);
  *         description: Event details
  */
 router.get('/events/:id', CustomerController.getEventDetails);
+router.get('/tax-settings', CustomerController.getPublicTaxSettings);
 
 // Protect all subsequent customer endpoints with Authentication & CUSTOMER Authorization Guard
 router.use(authenticate);
