@@ -57,7 +57,9 @@ export class BookingRepository {
       }
     }
 
-    // Create Booking Items if provided
+    // Create Booking Items, Attendees, and link held seats in parallel
+    const writePromises = [];
+
     const validItems = items
       .filter((item) => isValidObjectId(item.ticketTypeId))
       .map((item) => ({
@@ -72,40 +74,56 @@ export class BookingRepository {
       }));
 
     if (validItems.length > 0) {
-      await prisma.bookingItem.createMany({
-        data: validItems,
-      });
-    }
-
-    // Attach held seats from the reservation lock to this booking
-    if (reservationRef) {
-      const isRefObjectId = isValidObjectId(reservationRef);
-      const lock = await prisma.reservationLock.findFirst({
-        where: isRefObjectId
-          ? { OR: [{ reservationNumber: reservationRef }, { id: reservationRef }] }
-          : { reservationNumber: reservationRef },
-      });
-      if (lock) {
-        await prisma.seatMap.updateMany({
-          where: { reservationLockId: lock.id, status: SeatStatus.HELD },
-          data: { bookingId: booking.id },
-        });
-      }
+      writePromises.push(prisma.bookingItem.createMany({ data: validItems }));
     }
 
     if (Array.isArray(attendees) && attendees.length > 0) {
-      await prisma.bookingAttendee.createMany({
-        data: attendees.map((attendee, index) => ({
-          bookingId: booking.id,
-          attendeeIndex: Number.isInteger(attendee.attendeeIndex) ? attendee.attendeeIndex : index,
-          fullName: attendee.fullName,
-          mobileNumber: attendee.mobileNumber,
-          identityDocumentId: attendee.identityDocumentId || null,
-        })),
-      });
+      writePromises.push(
+        prisma.bookingAttendee.createMany({
+          data: attendees.map((attendee, index) => ({
+            bookingId: booking.id,
+            attendeeIndex: Number.isInteger(attendee.attendeeIndex) ? attendee.attendeeIndex : index,
+            fullName: attendee.fullName,
+            mobileNumber: attendee.mobileNumber,
+            identityDocumentId: attendee.identityDocumentId || null,
+          })),
+        })
+      );
     }
 
-    return this.findById(booking.id);
+    // Attach held seats from the reservation lock to this booking
+    const lockId = data.lockId || (data.lock ? data.lock.id : null);
+    if (lockId) {
+      writePromises.push(
+        prisma.seatMap.updateMany({
+          where: { reservationLockId: lockId, status: SeatStatus.HELD },
+          data: { bookingId: booking.id },
+        })
+      );
+    } else if (reservationRef) {
+      const isRefObjectId = isValidObjectId(reservationRef);
+      writePromises.push(
+        (async () => {
+          const lock = await prisma.reservationLock.findFirst({
+            where: isRefObjectId
+              ? { OR: [{ reservationNumber: reservationRef }, { id: reservationRef }] }
+              : { reservationNumber: reservationRef },
+          });
+          if (lock) {
+            await prisma.seatMap.updateMany({
+              where: { reservationLockId: lock.id, status: SeatStatus.HELD },
+              data: { bookingId: booking.id },
+            });
+          }
+        })()
+      );
+    }
+
+    if (writePromises.length > 0) {
+      await Promise.all(writePromises);
+    }
+
+    return booking;
   }
 
   /**

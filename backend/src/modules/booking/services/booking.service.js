@@ -29,30 +29,34 @@ export class BookingService {
       throw new AppError('Invalid Event ID format', HTTP_STATUS.BAD_REQUEST);
     }
 
-    // 1. Verify Event exists and is published
-    const event = await EventRepository.findById(dto.eventId);
-    if (!event || event.status !== 'Published') {
+    // 1. Verify Event exists and is published (lean query without 12 bloated joins)
+    const event = await prisma.event.findUnique({
+      where: { id: dto.eventId },
+      select: { id: true, status: true, title: true, price: true, isDeleted: true },
+    });
+    if (!event || event.isDeleted || event.status !== 'Published') {
       throw new AppError('Event is not available for booking', HTTP_STATUS.BAD_REQUEST);
     }
 
     // 2. Validate Reservation Lock if provided (Ensure 15-min hold hasn't expired)
+    let validatedLock = null;
     const reservationRef = dto.reservationNumber || dto.reservationId;
     if (reservationRef) {
       const isRefObjectId = isValidObjectId(reservationRef);
-      const lock = await prisma.reservationLock.findFirst({
+      validatedLock = await prisma.reservationLock.findFirst({
         where: isRefObjectId
           ? { OR: [{ reservationNumber: reservationRef }, { id: reservationRef }] }
           : { reservationNumber: reservationRef },
       });
 
-      if (lock) {
+      if (validatedLock) {
         const isExpired =
-          lock.status === 'EXPIRED' ||
-          lock.status === 'CANCELLED' ||
-          (lock.expiresAt && new Date() > new Date(lock.expiresAt));
+          validatedLock.status === 'EXPIRED' ||
+          validatedLock.status === 'CANCELLED' ||
+          (validatedLock.expiresAt && new Date() > new Date(validatedLock.expiresAt));
 
         if (isExpired) {
-          await ReservationRepository.releaseReservationLock(lock.id, 'EXPIRED');
+          await ReservationRepository.releaseReservationLock(validatedLock.id, 'EXPIRED');
           throw new AppError(
             'Your 15-minute ticket lock has expired. Please select your tickets again.',
             HTTP_STATUS.BAD_REQUEST
@@ -88,19 +92,17 @@ export class BookingService {
       throw new AppError('Each attendee must upload a unique identity document', HTTP_STATUS.BAD_REQUEST);
     }
 
-    const resolvedAttendees = [];
-    for (let i = 0; i < attendees.length; i += 1) {
-      const attendee = attendees[i];
-      if (attendee.identityDocumentId) {
-        await IdentityDocumentService.assertOwnedUnconsumed(attendee.identityDocumentId, customerId);
-      }
-      resolvedAttendees.push({
-        attendeeIndex: i,
-        fullName: attendee.fullName,
-        mobileNumber: attendee.mobileNumber,
-        identityDocumentId: attendee.identityDocumentId || null,
-      });
+    // Batch validate all uploaded identity documents in a single round-trip
+    if (documentIds.length > 0) {
+      await IdentityDocumentService.assertManyOwnedUnconsumed(documentIds, customerId);
     }
+
+    const resolvedAttendees = attendees.map((attendee, i) => ({
+      attendeeIndex: i,
+      fullName: attendee.fullName,
+      mobileNumber: attendee.mobileNumber,
+      identityDocumentId: attendee.identityDocumentId || null,
+    }));
 
     if (isValidObjectId(dto.sectionId)) {
       const section = await SectionRepository.findById(dto.sectionId);
@@ -113,10 +115,23 @@ export class BookingService {
       }
     }
 
+    // Batch fetch all ticket types for priced lines
+    const validTicketTypeIds = lineItems
+      .map((it) => it.ticketTypeId)
+      .filter((id) => isValidObjectId(id));
+
+    const ticketTypesMap = new Map();
+    if (validTicketTypeIds.length > 0) {
+      const foundTicketTypes = await prisma.ticketType.findMany({
+        where: { id: { in: validTicketTypeIds } },
+      });
+      foundTicketTypes.forEach((tt) => ticketTypesMap.set(tt.id, tt));
+    }
+
     const pricedLines = [];
     for (const item of lineItems) {
       if (!isValidObjectId(item.ticketTypeId)) continue;
-      const tt = await TicketTypeRepository.findById(item.ticketTypeId);
+      const tt = ticketTypesMap.get(item.ticketTypeId);
       if (!tt) continue;
       let itemSectionId = isValidObjectId(item.sectionId) ? item.sectionId : null;
       if (!itemSectionId && isValidObjectId(tt.sectionId)) {
@@ -226,6 +241,7 @@ export class BookingService {
         notes: dto.notes || null,
         reservationNumber: dto.reservationNumber || null,
         reservationId: dto.reservationId || null,
+        lockId: validatedLock?.id || null,
         paymentGateway: dto.paymentGateway || null,
       },
       bookingItems,
@@ -234,7 +250,8 @@ export class BookingService {
 
     await IdentityDocumentService.consumeMany(documentIds);
 
-    if (dto.paymentGateway === PaymentGateway.CASH || dto.paymentGateway === 'CASH') {
+    const isCash = dto.paymentGateway === PaymentGateway.CASH || dto.paymentGateway === 'CASH';
+    if (isCash) {
       await PaymentRepository.createPayment({
         bookingId: booking.id,
         eventId: booking.eventId,
@@ -252,22 +269,25 @@ export class BookingService {
         paymentMethod: 'CASH',
         paymentStatus: PaymentStatus.Pending,
       });
+    }
 
-      try {
+    // Single unified fetch of full booking with joined relations
+    const fullBooking = await BookingRepository.findById(booking.id);
+
+    if (isCash) {
+      setImmediate(() => {
         EmailService.sendCashPendingEmail({
-          to: booking.customer?.email,
-          bookingNumber: booking.bookingNumber,
-          eventName: booking.event?.title,
-          quantity: booking.quantity,
-          totalAmount: booking.totalAmount,
-          currency: booking.currency,
-          attendees: booking.attendees || resolvedAttendees,
+          to: fullBooking?.customer?.email,
+          bookingNumber: fullBooking?.bookingNumber,
+          eventName: fullBooking?.event?.title,
+          quantity: fullBooking?.quantity,
+          totalAmount: fullBooking?.totalAmount,
+          currency: fullBooking?.currency,
+          attendees: fullBooking?.attendees || resolvedAttendees,
         }).catch((err) => {
           logger.error(`Cash pending email failed for booking ${booking.bookingNumber}: ${err.message}`);
         });
-      } catch (err) {
-        logger.error(`Cash pending email failed for booking ${booking.bookingNumber}: ${err.message}`);
-      }
+      });
     }
 
     BookingRepository.createAuditLog(customerId, 'CREATE_BOOKING', 'Booking', booking.id, null, {
@@ -275,7 +295,8 @@ export class BookingService {
     }).catch((err) => {
       logger.error(`Booking audit log failed for ${booking.id}: ${err.message}`);
     });
-    return presentBooking(await BookingRepository.findById(booking.id), { isStaff: false });
+
+    return presentBooking(fullBooking, { isStaff: false });
   }
 
   /**
@@ -296,11 +317,27 @@ export class BookingService {
     const confirmedBooking = await BookingRepository.confirmBooking(bookingId, transactionId, options);
     await BookingRepository.createAuditLog(booking.customerId, 'CONFIRM_BOOKING', 'Booking', bookingId, booking, confirmedBooking);
 
-    const emailResult = await TicketDeliveryService.deliverAfterConfirm(confirmedBooking);
+    let emailSent = false;
+    let emailMessage = 'Ticket delivery in progress.';
+
+    if (options.asyncEmail) {
+      setImmediate(() => {
+        TicketDeliveryService.deliverAfterConfirm(confirmedBooking).catch((err) => {
+          logger.error(`Async ticket delivery failed for booking ${confirmedBooking?.id}: ${err.message}`);
+        });
+      });
+      emailSent = true;
+      emailMessage = 'Ticket email is being delivered.';
+    } else {
+      const emailResult = await TicketDeliveryService.deliverAfterConfirm(confirmedBooking);
+      emailSent = emailResult.emailSent;
+      emailMessage = emailResult.emailMessage;
+    }
+
     return {
       ...presentBooking(confirmedBooking, { isStaff: true }),
-      emailSent: emailResult.emailSent,
-      emailMessage: emailResult.emailMessage,
+      emailSent,
+      emailMessage,
     };
   }
 

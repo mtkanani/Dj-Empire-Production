@@ -182,6 +182,38 @@ export class InventoryService {
         ? items
         : [{ sectionId, ticketTypeId, seatIds, quantity }];
 
+    const rawTicketTypeIds = rawItems.map((i) => i.ticketTypeId).filter(Boolean);
+    const rawSectionIds = rawItems.map((i) => i.sectionId).filter(Boolean);
+
+    const [ticketTypes, sections] = await Promise.all([
+      rawTicketTypeIds.length > 0
+        ? prisma.ticketType.findMany({ where: { id: { in: rawTicketTypeIds } } })
+        : [],
+      rawSectionIds.length > 0
+        ? prisma.eventSection.findMany({ where: { id: { in: rawSectionIds } } })
+        : [],
+    ]);
+
+    const ttMap = new Map(ticketTypes.map((t) => [t.id, t]));
+    const secMap = new Map(sections.map((s) => [s.id, s]));
+
+    const missingSectionIds = [];
+    for (const item of rawItems) {
+      if (!item.sectionId && item.ticketTypeId) {
+        const tt = ttMap.get(item.ticketTypeId);
+        if (tt?.sectionId && !secMap.has(tt.sectionId)) {
+          missingSectionIds.push(tt.sectionId);
+        }
+      }
+    }
+
+    if (missingSectionIds.length > 0) {
+      const extraSections = await prisma.eventSection.findMany({
+        where: { id: { in: missingSectionIds } },
+      });
+      extraSections.forEach((s) => secMap.set(s.id, s));
+    }
+
     const resolved = [];
     for (const item of rawItems) {
       const qty = parseInt(item.quantity, 10) || 1;
@@ -189,14 +221,16 @@ export class InventoryService {
 
       let targetTicketTypeId = item.ticketTypeId || null;
       let targetSectionId = item.sectionId || null;
+      let tt = null;
 
       if (targetTicketTypeId) {
-        const ticketType = await prisma.ticketType.findUnique({ where: { id: targetTicketTypeId } });
-        if (ticketType && !targetSectionId) targetSectionId = ticketType.sectionId;
+        tt = ttMap.get(targetTicketTypeId) || null;
+        if (tt && !targetSectionId) targetSectionId = tt.sectionId;
       }
 
+      let section = null;
       if (targetSectionId) {
-        const section = await prisma.eventSection.findUnique({ where: { id: targetSectionId } });
+        section = secMap.get(targetSectionId) || null;
         if (!section || (eventId && section.eventId !== eventId)) {
           throw new AppError('Specified section was not found for this event', HTTP_STATUS.NOT_FOUND);
         }
@@ -207,6 +241,8 @@ export class InventoryService {
         quantity: qty,
         ticketTypeId: targetTicketTypeId,
         sectionId: targetSectionId,
+        ticketType: tt,
+        section,
         seatIds: Array.isArray(item.seatIds) ? item.seatIds : [],
       });
     }
@@ -218,42 +254,45 @@ export class InventoryService {
     return resolved;
   }
 
-  static async adjustSectionCounters(sectionId, { reservedDelta = 0, soldDelta = 0 }) {
-    const sec = await prisma.eventSection.findUnique({ where: { id: sectionId } });
+  static async adjustSectionCounters(sectionId, { reservedDelta = 0, soldDelta = 0, currentSection = null }) {
+    const sec = currentSection || (await prisma.eventSection.findUnique({ where: { id: sectionId } }));
     if (!sec) return null;
 
     const newReserved = Math.max(0, sec.reservedCapacity + reservedDelta);
     const newSold = Math.max(0, sec.soldCapacity + soldDelta);
     const newAvailable = Math.max(0, sec.capacity - newReserved - newSold);
 
-    await prisma.eventSection.update({
+    const sectionUpdate = prisma.eventSection.update({
       where: { id: sectionId },
       data: { reservedCapacity: newReserved, soldCapacity: newSold, availableCapacity: newAvailable },
     });
 
-    const inventoryRow = await prisma.ticketInventory.findFirst({ where: { sectionId } });
-    if (inventoryRow) {
-      const invReserved = Math.max(0, inventoryRow.reservedQuantity + reservedDelta);
-      const invSold = Math.max(0, inventoryRow.soldQuantity + soldDelta);
-      await prisma.ticketInventory.update({
-        where: { id: inventoryRow.id },
-        data: {
-          reservedQuantity: invReserved,
-          soldQuantity: invSold,
-          availableQuantity: Math.max(
-            0,
-            inventoryRow.totalQuantity - invReserved - invSold - inventoryRow.blockedQuantity
-          ),
-        },
-      });
-    }
+    const inventoryUpdate = (async () => {
+      const inventoryRow = await prisma.ticketInventory.findFirst({ where: { sectionId } });
+      if (inventoryRow) {
+        const invReserved = Math.max(0, inventoryRow.reservedQuantity + reservedDelta);
+        const invSold = Math.max(0, inventoryRow.soldQuantity + soldDelta);
+        await prisma.ticketInventory.update({
+          where: { id: inventoryRow.id },
+          data: {
+            reservedQuantity: invReserved,
+            soldQuantity: invSold,
+            availableQuantity: Math.max(
+              0,
+              inventoryRow.totalQuantity - invReserved - invSold - inventoryRow.blockedQuantity
+            ),
+          },
+        });
+      }
+    })();
 
+    await Promise.all([sectionUpdate, inventoryUpdate]);
     return { newReserved, newSold, newAvailable };
   }
 
-  static async adjustTicketAvailability(ticketTypeId, delta) {
+  static async adjustTicketAvailability(ticketTypeId, delta, currentTicketType = null) {
     if (!ticketTypeId) return;
-    const tt = await prisma.ticketType.findUnique({ where: { id: ticketTypeId } });
+    const tt = currentTicketType || (await prisma.ticketType.findUnique({ where: { id: ticketTypeId } }));
     if (!tt) return;
     const newAvailable = Math.max(0, Math.min(tt.quantityTotal, tt.quantityAvailable + delta));
     await prisma.ticketType.update({
@@ -272,20 +311,18 @@ export class InventoryService {
     const heldSeatRecords = [];
 
     for (const item of lineItems) {
-      const { quantity, ticketTypeId, sectionId: targetSectionId, seatIds } = item;
+      const { quantity, ticketTypeId, sectionId: targetSectionId, seatIds, ticketType: preloadedTt, section: preloadedSection } = item;
 
-      if (ticketTypeId) {
-        const tt = await prisma.ticketType.findUnique({ where: { id: ticketTypeId } });
-        if (tt && tt.quantityAvailable < quantity) {
-          throw new AppError(
-            `Requested quantity (${quantity}) exceeds available tickets for ${tt.name}`,
-            HTTP_STATUS.BAD_REQUEST
-          );
-        }
+      const tt = preloadedTt || (ticketTypeId ? await prisma.ticketType.findUnique({ where: { id: ticketTypeId } }) : null);
+      if (tt && tt.quantityAvailable < quantity) {
+        throw new AppError(
+          `Requested quantity (${quantity}) exceeds available tickets for ${tt.name}`,
+          HTTP_STATUS.BAD_REQUEST
+        );
       }
 
       if (targetSectionId) {
-        const section = await prisma.eventSection.findUnique({ where: { id: targetSectionId } });
+        const section = preloadedSection || (await prisma.eventSection.findUnique({ where: { id: targetSectionId } }));
         if (section && section.availableCapacity < quantity) {
           throw new AppError(
             `Requested quantity (${quantity}) exceeds available capacity for ${section.name}`,
@@ -293,46 +330,39 @@ export class InventoryService {
           );
         }
 
-        const seatCount = await prisma.seatMap.count({ where: { sectionId: targetSectionId } });
+        let targetSeats = [];
 
-        if (seatCount > 0) {
-          let targetSeats;
-
-          if (seatIds.length > 0) {
-            targetSeats = await prisma.seatMap.findMany({
-              where: {
-                id: { in: seatIds },
-                sectionId: targetSectionId,
-                status: SeatStatus.AVAILABLE,
-                isBooked: false,
-                isBlocked: false,
-              },
-            });
-            if (targetSeats.length !== seatIds.length) {
-              throw new AppError(
-                'One or more selected seats are no longer available in this section.',
-                HTTP_STATUS.BAD_REQUEST
-              );
-            }
-          } else {
-            targetSeats = await prisma.seatMap.findMany({
-              where: {
-                sectionId: targetSectionId,
-                status: SeatStatus.AVAILABLE,
-                isBooked: false,
-                isBlocked: false,
-              },
-              orderBy: [{ row: 'asc' }, { column: 'asc' }],
-              take: quantity,
-            });
-            if (targetSeats.length < quantity) {
-              throw new AppError(
-                `Requested quantity (${quantity}) exceeds available seats in this section`,
-                HTTP_STATUS.BAD_REQUEST
-              );
-            }
+        if (seatIds.length > 0) {
+          targetSeats = await prisma.seatMap.findMany({
+            where: {
+              id: { in: seatIds },
+              sectionId: targetSectionId,
+              status: SeatStatus.AVAILABLE,
+              isBooked: false,
+              isBlocked: false,
+            },
+          });
+          if (targetSeats.length !== seatIds.length) {
+            throw new AppError(
+              'One or more selected seats are no longer available in this section.',
+              HTTP_STATUS.BAD_REQUEST
+            );
           }
+        } else {
+          // If section has physical seat records, hold next available
+          targetSeats = await prisma.seatMap.findMany({
+            where: {
+              sectionId: targetSectionId,
+              status: SeatStatus.AVAILABLE,
+              isBooked: false,
+              isBlocked: false,
+            },
+            orderBy: [{ row: 'asc' }, { column: 'asc' }],
+            take: quantity,
+          });
+        }
 
+        if (targetSeats.length > 0) {
           const idsToHold = targetSeats.map((s) => s.id);
           await prisma.seatMap.updateMany({
             where: { id: { in: idsToHold }, sectionId: targetSectionId },
@@ -347,41 +377,46 @@ export class InventoryService {
           heldSeatRecords.push(...updatedSeats);
         }
 
-        await this.adjustSectionCounters(targetSectionId, { reservedDelta: quantity });
+        await this.adjustSectionCounters(targetSectionId, { reservedDelta: quantity, currentSection: section });
       }
 
       if (ticketTypeId) {
-        await this.adjustTicketAvailability(ticketTypeId, -quantity);
+        await this.adjustTicketAvailability(ticketTypeId, -quantity, tt);
       }
     }
 
-    const updatedInventory = await this.getLiveInventory(eventId);
+    // Run live inventory recalculation and realtime broadcasts in background without blocking customer response
+    setImmediate(async () => {
+      try {
+        const updatedInventory = await this.getLiveInventory(eventId);
+        heldSeatRecords.forEach((seat) => {
+          RealtimeService.broadcastSeatHeld({
+            eventId,
+            sectionId: seat.sectionId,
+            seat: {
+              id: seat.id,
+              seatNumber: seat.seatNumber,
+              row: seat.row,
+              status: SeatStatus.HELD,
+              heldUntil: expiresAt,
+            },
+            inventory: updatedInventory,
+          });
+        });
 
-    heldSeatRecords.forEach((seat) => {
-      RealtimeService.broadcastSeatHeld({
-        eventId,
-        sectionId: seat.sectionId,
-        seat: {
-          id: seat.id,
-          seatNumber: seat.seatNumber,
-          row: seat.row,
-          status: SeatStatus.HELD,
-          heldUntil: expiresAt,
-        },
-        inventory: updatedInventory,
-      });
-    });
-
-    RealtimeService.broadcastEventAvailability({
-      eventId,
-      availability: updatedInventory,
+        RealtimeService.broadcastEventAvailability({
+          eventId,
+          availability: updatedInventory,
+        });
+      } catch (err) {
+        logger.error(`Realtime inventory broadcast failed: ${err.message}`);
+      }
     });
 
     return {
       success: true,
       heldSeats: heldSeatRecords,
       expiresAt,
-      inventory: updatedInventory,
     };
   }
 
@@ -560,12 +595,17 @@ export class InventoryService {
       assignedByTicketType[targetTicketTypeId || 'unknown'] = targetSeats;
     }
 
-    const updatedInventory = await this.getLiveInventory(eventId);
+    setImmediate(async () => {
+      try {
+        const updatedInventory = await this.getLiveInventory(eventId);
+        RealtimeService.broadcastBookingConfirmed(booking);
+        RealtimeService.broadcastEventAvailability({ eventId, availability: updatedInventory });
+      } catch (err) {
+        logger.error(`Realtime booking confirm broadcast error: ${err.message}`);
+      }
+    });
 
-    RealtimeService.broadcastBookingConfirmed(booking);
-    RealtimeService.broadcastEventAvailability({ eventId, availability: updatedInventory });
-
-    return { inventory: updatedInventory, assignedByTicketType };
+    return { assignedByTicketType };
   }
 
   /**

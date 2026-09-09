@@ -1,10 +1,16 @@
 import { prisma } from '../config/prisma.js';
+import { memoryCache } from '../utils/cache.util.js';
+
+const TAX_CACHE_KEY = 'tax_settings:active';
 
 export class TaxSettingRepository {
   /**
    * Get current active Tax & GST setting
    */
   static async getActiveTaxSetting() {
+    const cached = memoryCache.get(TAX_CACHE_KEY);
+    if (cached) return cached;
+
     let setting = await prisma.taxSetting.findFirst({
       where: { isActive: true },
       orderBy: { createdAt: 'desc' },
@@ -25,6 +31,7 @@ export class TaxSettingRepository {
       });
     }
 
+    memoryCache.set(TAX_CACHE_KEY, setting, 10 * 60 * 1000);
     return setting;
   }
 
@@ -34,7 +41,7 @@ export class TaxSettingRepository {
   static async updateTaxSetting(data) {
     const current = await this.getActiveTaxSetting();
 
-    return prisma.taxSetting.update({
+    const updated = await prisma.taxSetting.update({
       where: { id: current.id },
       data: {
         gstRate: data.gstRate !== undefined ? data.gstRate : current.gstRate,
@@ -47,5 +54,8 @@ export class TaxSettingRepository {
         isActive: data.isActive !== undefined ? data.isActive : current.isActive,
       },
     });
+
+    memoryCache.del(TAX_CACHE_KEY);
+    return updated;
   }
 }

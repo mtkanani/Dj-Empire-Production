@@ -99,6 +99,7 @@ export class CashVerificationService {
 
     const confirmed = await BookingService.confirmBooking(booking.id, `CASH-${booking.bookingNumber}`, {
       paymentStatus: PaymentStatus.CASH_RECEIVED,
+      asyncEmail: true,
     });
 
     await BookingRepository.createAuditLog(

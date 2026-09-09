@@ -11,6 +11,7 @@ import { JwtConfig } from '../config/jwt.js';
 import { EmailService } from './email.service.js';
 import { AppError } from '../utils/AppError.js';
 import { HTTP_STATUS } from '../constants/httpStatusCodes.js';
+import { memoryCache } from '../utils/cache.util.js';
 
 /**
  * Super Admin Service implementing Admin Dashboard, Organizer/Customer Management, and Master Data CRUD
@@ -185,16 +186,22 @@ export class AdminService {
       throw new AppError('Category with this name or slug already exists', HTTP_STATUS.CONFLICT);
     }
 
-    return CategoryRepository.create({
+    const res = await CategoryRepository.create({
       name: dto.name,
       slug,
       description: dto.description || null,
       icon: dto.icon || null,
     });
+    memoryCache.del('master:categories');
+    return res;
   }
 
   static async getAllCategories() {
-    return CategoryRepository.findAll();
+    const cached = memoryCache.get('master:categories');
+    if (cached) return cached;
+    const categories = await CategoryRepository.findAll();
+    memoryCache.set('master:categories', categories, 15 * 60 * 1000);
+    return categories;
   }
 
   static async getCategoryById(id) {
@@ -205,12 +212,16 @@ export class AdminService {
 
   static async updateCategory(id, dto) {
     await this.getCategoryById(id);
-    return CategoryRepository.update(id, dto);
+    const res = await CategoryRepository.update(id, dto);
+    memoryCache.del('master:categories');
+    return res;
   }
 
   static async deleteCategory(id) {
     await this.getCategoryById(id);
-    return CategoryRepository.delete(id);
+    const res = await CategoryRepository.delete(id);
+    memoryCache.del('master:categories');
+    return res;
   }
 
   // ==================== CITY CRUD ====================
@@ -221,16 +232,22 @@ export class AdminService {
       throw new AppError('City with this name or slug already exists', HTTP_STATUS.CONFLICT);
     }
 
-    return CityRepository.create({
+    const res = await CityRepository.create({
       name: dto.name,
       slug,
       state: dto.state || null,
       country: dto.country || 'India',
     });
+    memoryCache.del('master:cities');
+    return res;
   }
 
   static async getAllCities() {
-    return CityRepository.findAll();
+    const cached = memoryCache.get('master:cities');
+    if (cached) return cached;
+    const cities = await CityRepository.findAll();
+    memoryCache.set('master:cities', cities, 15 * 60 * 1000);
+    return cities;
   }
 
   static async getCityById(id) {
@@ -241,12 +258,16 @@ export class AdminService {
 
   static async updateCity(id, dto) {
     await this.getCityById(id);
-    return CityRepository.update(id, dto);
+    const res = await CityRepository.update(id, dto);
+    memoryCache.del('master:cities');
+    return res;
   }
 
   static async deleteCity(id) {
     await this.getCityById(id);
-    return CityRepository.delete(id);
+    const res = await CityRepository.delete(id);
+    memoryCache.del('master:cities');
+    return res;
   }
 
   // ==================== VENUE CRUD ====================
@@ -254,11 +275,17 @@ export class AdminService {
     const city = await CityRepository.findById(dto.cityId);
     if (!city) throw new AppError('Specified City not found', HTTP_STATUS.BAD_REQUEST);
 
-    return VenueRepository.create(dto);
+    const res = await VenueRepository.create(dto);
+    memoryCache.del('master:venues');
+    return res;
   }
 
   static async getAllVenues() {
-    return VenueRepository.findAll();
+    const cached = memoryCache.get('master:venues');
+    if (cached) return cached;
+    const venues = await VenueRepository.findAll();
+    memoryCache.set('master:venues', venues, 15 * 60 * 1000);
+    return venues;
   }
 
   static async getVenueById(id) {
@@ -273,12 +300,16 @@ export class AdminService {
       const city = await CityRepository.findById(dto.cityId);
       if (!city) throw new AppError('Specified City not found', HTTP_STATUS.BAD_REQUEST);
     }
-    return VenueRepository.update(id, dto);
+    const res = await VenueRepository.update(id, dto);
+    memoryCache.del('master:venues');
+    return res;
   }
 
   static async deleteVenue(id) {
     await this.getVenueById(id);
-    return VenueRepository.delete(id);
+    const res = await VenueRepository.delete(id);
+    memoryCache.del('master:venues');
+    return res;
   }
 
   // ==================== PLATFORM PAYMENTS ====================

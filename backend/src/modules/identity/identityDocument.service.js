@@ -58,6 +58,25 @@ export class IdentityDocumentService {
     return doc;
   }
 
+  static async assertManyOwnedUnconsumed(documentIds = [], userId) {
+    if (!documentIds.length) return [];
+    const docs = await prisma.identityDocument.findMany({
+      where: { id: { in: documentIds } },
+    });
+    if (docs.length !== documentIds.length) {
+      throw new AppError('One or more identity documents were not found', HTTP_STATUS.NOT_FOUND);
+    }
+    for (const doc of docs) {
+      if (doc.uploadedByUserId !== userId) {
+        throw new AppError('Identity document does not belong to your account', HTTP_STATUS.FORBIDDEN);
+      }
+      if (doc.consumed) {
+        throw new AppError('Identity document has already been used on another booking', HTTP_STATUS.BAD_REQUEST);
+      }
+    }
+    return docs;
+  }
+
   static async consumeMany(documentIds, tx = prisma) {
     if (!documentIds.length) return;
     await tx.identityDocument.updateMany({

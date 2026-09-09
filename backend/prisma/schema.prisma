@@ -861,6 +861,9 @@ model SeatMap {
   updatedAt         DateTime         @updatedAt
 
   @@unique([sectionId, row, column])
+  @@index([sectionId, status])
+  @@index([reservationLockId])
+  @@index([bookingId])
 }
 
 // Waitlist Engine Model

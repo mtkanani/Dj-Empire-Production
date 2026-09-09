@@ -17,15 +17,47 @@ export class ReservationService {
         ? dto.items
         : [{ sectionId: dto.sectionId, ticketTypeId: dto.ticketTypeId, quantity: dto.quantity, seatIds: dto.seatIds }];
 
+    const ticketTypeIds = lineItems.map((i) => i.ticketTypeId).filter(Boolean);
+    const sectionIds = lineItems.map((i) => i.sectionId).filter(Boolean);
+
+    const [ticketTypes, sections] = await Promise.all([
+      ticketTypeIds.length > 0
+        ? prisma.ticketType.findMany({ where: { id: { in: ticketTypeIds } } })
+        : [],
+      sectionIds.length > 0
+        ? prisma.eventSection.findMany({ where: { id: { in: sectionIds } } })
+        : [],
+    ]);
+
+    const ttMap = new Map(ticketTypes.map((t) => [t.id, t]));
+    const secMap = new Map(sections.map((s) => [s.id, s]));
+
+    const missingSectionIds = [];
+    for (const item of lineItems) {
+      if (!item.sectionId && item.ticketTypeId) {
+        const tt = ttMap.get(item.ticketTypeId);
+        if (tt?.sectionId && !secMap.has(tt.sectionId)) {
+          missingSectionIds.push(tt.sectionId);
+        }
+      }
+    }
+
+    if (missingSectionIds.length > 0) {
+      const extraSections = await prisma.eventSection.findMany({
+        where: { id: { in: missingSectionIds } },
+      });
+      extraSections.forEach((s) => secMap.set(s.id, s));
+    }
+
     for (const item of lineItems) {
       let sectionId = item.sectionId;
       if (!sectionId && item.ticketTypeId) {
-        const tt = await prisma.ticketType.findUnique({ where: { id: item.ticketTypeId } });
+        const tt = ttMap.get(item.ticketTypeId);
         if (tt?.sectionId) sectionId = tt.sectionId;
       }
 
       if (sectionId) {
-        const section = await SectionRepository.findById(sectionId);
+        const section = secMap.get(sectionId);
         if (!section) throw new AppError('Specified Section not found', HTTP_STATUS.NOT_FOUND);
 
         const qty = item.quantity || dto.quantity || 1;

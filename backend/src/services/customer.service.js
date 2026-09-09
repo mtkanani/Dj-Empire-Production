@@ -6,6 +6,7 @@ import { AppError } from '../utils/AppError.js';
 import { HTTP_STATUS } from '../constants/httpStatusCodes.js';
 import { formatStoredPhone } from '../utils/phone.util.js';
 import { duplicateKeyMessage, isPrismaUniqueError } from '../utils/authIdentifier.util.js';
+import { memoryCache } from '../utils/cache.util.js';
 
 /**
  * Customer Business Service
@@ -78,12 +79,23 @@ export class CustomerService {
 
   // ==================== EVENT BROWSING & SEARCH ====================
   static async browseEvents(query) {
-    return CustomerRepository.searchEvents(query);
+    const cacheKey = `events:browse:${JSON.stringify(query || {})}`;
+    const cached = memoryCache.get(cacheKey);
+    if (cached) return cached;
+
+    const result = await CustomerRepository.searchEvents(query);
+    memoryCache.set(cacheKey, result, 60 * 1000);
+    return result;
   }
 
   static async getEventDetails(eventId) {
+    const cacheKey = `events:details:${eventId}`;
+    const cached = memoryCache.get(cacheKey);
+    if (cached) return cached;
+
     const event = await CustomerRepository.findPublicEventById(eventId);
     if (!event) throw new AppError('Event not found or not published', HTTP_STATUS.NOT_FOUND);
+    memoryCache.set(cacheKey, event, 2 * 60 * 1000);
     return event;
   }
 
