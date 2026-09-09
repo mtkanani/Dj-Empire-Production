@@ -135,4 +135,13 @@ export class AuthController {
       message: result.message,
     });
   });
+
+  static changePassword = asyncHandler(async (req, res) => {
+    const { oldPassword, newPassword } = req.body;
+    const result = await AuthService.changePassword(req.user.userId, oldPassword, newPassword);
+    return ApiResponse.success(res, {
+      statusCode: HTTP_STATUS.OK,
+      message: result.message,
+    });
+  });
 }

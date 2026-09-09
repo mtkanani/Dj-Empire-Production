@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { BrowserRouter, useNavigate, useLocation } from "react-router-dom";
 import "./styles/global.css";
+import "./styles/dashboard-responsive.css";
 import Nav from "./components/Nav";
 import AppRoutes from "./routes/AppRoutes";
 import { C, fontImport } from "./constants/theme.js";
@@ -87,6 +88,14 @@ function MainContent() {
     return "home";
   })();
 
+  const path = location.pathname;
+  const showAmbientEffects =
+    path === '/' ||
+    path === '/about' ||
+    path === '/services' ||
+    path === '/portfolio' ||
+    path === '/contact';
+
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [location.pathname]);
@@ -95,10 +104,14 @@ function MainContent() {
     <div style={{ background: C.bg, minHeight: "100vh", position: "relative", width: "100%", overflowX: "hidden" }}>
       <style>{fontImport}</style>
 
-      <ParticleBackground />
-      <MouseGlow />
-      <CursorTrail />
-      <FloatingShapes />
+      {showAmbientEffects ? (
+        <>
+          <ParticleBackground />
+          <MouseGlow />
+          <CursorTrail />
+          <FloatingShapes />
+        </>
+      ) : null}
 
       <Nav view={currentView} setView={setView} />
       <div style={{ maxWidth: "100%", margin: "0 auto", position: "relative", zIndex: 1, width: "100%", paddingTop: "88px" }}>

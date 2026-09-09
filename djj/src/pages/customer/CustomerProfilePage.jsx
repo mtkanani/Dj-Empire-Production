@@ -6,6 +6,7 @@ import { useToast } from '../../context/ToastContext.jsx';
 import { tokenManager } from '../../utils/tokenManager.js';
 import { customerAccountService } from '../../services/customer/customerAccountService.js';
 import { validatePhone } from '../../utils/validation.js';
+import ChangePasswordCard from '../../components/account/ChangePasswordCard.jsx';
 
 export default function CustomerProfilePage() {
   const navigate = useNavigate();
@@ -448,6 +449,10 @@ export default function CustomerProfilePage() {
               </button>
             </form>
           </div>
+        </div>
+
+        <div style={{ marginTop: '20px', maxWidth: '100%' }}>
+          <ChangePasswordCard />
         </div>
       </div>
 

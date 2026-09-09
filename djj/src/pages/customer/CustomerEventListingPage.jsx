@@ -57,39 +57,20 @@ export default function CustomerEventListingPage() {
     setSearchParams({});
   };
 
-  const fetchEvents = useCallback(async () => {
-    setLoading(true);
+  const fetchEvents = useCallback(async ({ showSkeleton = false } = {}) => {
+    if (showSkeleton) setLoading(true);
     setError(null);
     try {
-      const params = {};
+      const params = { limit: 24 };
       if (search.trim()) params.search = search.trim();
       if (categoryId) params.categoryId = categoryId;
       if (cityId) params.cityId = cityId;
       if (minPrice) params.minPrice = minPrice;
       if (maxPrice) params.maxPrice = maxPrice;
 
-      const [evRes, catRes, citRes] = await Promise.allSettled([
-        customerEventService.browseEvents(params),
-        customerEventService.getCategories(),
-        customerEventService.getCities(),
-      ]);
-
-      if (evRes.status === 'fulfilled') {
-        const rawEv = evRes.value.data || evRes.value || [];
-        setEvents(Array.isArray(rawEv) ? rawEv : []);
-      } else {
-        throw new Error('Failed to fetch events');
-      }
-
-      if (catRes.status === 'fulfilled') {
-        const rawCat = catRes.value.data || catRes.value || [];
-        setCategories(Array.isArray(rawCat) ? rawCat : []);
-      }
-
-      if (citRes.status === 'fulfilled') {
-        const rawCit = citRes.value.data || citRes.value || [];
-        setCities(Array.isArray(rawCit) ? rawCit : []);
-      }
+      const evRes = await customerEventService.browseEvents(params);
+      const rawEv = evRes.data || evRes || [];
+      setEvents(Array.isArray(rawEv) ? rawEv : []);
     } catch (err) {
       setError(err.message || 'Unable to load events listing.');
     } finally {
@@ -98,7 +79,29 @@ export default function CustomerEventListingPage() {
   }, [search, categoryId, cityId, minPrice, maxPrice]);
 
   useEffect(() => {
-    fetchEvents();
+    const loadFilters = async () => {
+      const [catRes, citRes] = await Promise.allSettled([
+        customerEventService.getCategories(),
+        customerEventService.getCities(),
+      ]);
+      if (catRes.status === 'fulfilled') {
+        const rawCat = catRes.value.data || catRes.value || [];
+        setCategories(Array.isArray(rawCat) ? rawCat : []);
+      }
+      if (citRes.status === 'fulfilled') {
+        const rawCit = citRes.value.data || citRes.value || [];
+        setCities(Array.isArray(rawCit) ? rawCit : []);
+      }
+    };
+    loadFilters();
+  }, []);
+
+  useEffect(() => {
+    const hasList = events.length > 0;
+    const timer = setTimeout(() => {
+      fetchEvents({ showSkeleton: !hasList });
+    }, search ? 250 : 0);
+    return () => clearTimeout(timer);
   }, [fetchEvents]);
 
   useEffect(() => {
@@ -179,10 +182,13 @@ export default function CustomerEventListingPage() {
             <div className="explore-count-desktop" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: '14px', color: C.muted, fontWeight: 600 }}>
                 Showing <strong style={{ color: C.gold }}>{events.length}</strong> Published Events
+                {loading && events.length > 0 ? (
+                  <span style={{ marginLeft: 8, color: C.gold, fontWeight: 500 }}>Updating…</span>
+                ) : null}
               </span>
             </div>
 
-            <EventGrid events={events} loading={loading} error={error} onRetry={fetchEvents} />
+            <EventGrid events={events} loading={loading && events.length === 0} error={error} onRetry={() => fetchEvents({ showSkeleton: events.length === 0 })} />
           </div>
         </div>
       </main>

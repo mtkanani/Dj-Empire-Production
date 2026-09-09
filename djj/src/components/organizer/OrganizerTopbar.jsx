@@ -44,6 +44,7 @@ export const OrganizerTopbar = ({ onMobileToggle }) => {
       <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
         <button
           onClick={onMobileToggle}
+          className="dashboard-mobile-toggle"
           style={{
             background: 'none',
             border: 'none',

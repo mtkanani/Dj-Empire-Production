@@ -4,6 +4,7 @@ import { C } from '../../constants/theme.js';
 import { useAuth } from '../../hooks/useAuth.js';
 import { useToast } from '../../hooks/useToast.js';
 import { api } from '../../services/api.js';
+import ChangePasswordCard from '../../components/account/ChangePasswordCard.jsx';
 
 export default function ProfilePage() {
   const { user } = useAuth();
@@ -242,6 +243,8 @@ export default function ProfilePage() {
           </form>
         )}
       </div>
+
+      <ChangePasswordCard />
     </div>
   );
 }

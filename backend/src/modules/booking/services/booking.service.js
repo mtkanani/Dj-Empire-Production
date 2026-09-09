@@ -254,7 +254,7 @@ export class BookingService {
       });
 
       try {
-        await EmailService.sendCashPendingEmail({
+        EmailService.sendCashPendingEmail({
           to: booking.customer?.email,
           bookingNumber: booking.bookingNumber,
           eventName: booking.event?.title,
@@ -262,13 +262,19 @@ export class BookingService {
           totalAmount: booking.totalAmount,
           currency: booking.currency,
           attendees: booking.attendees || resolvedAttendees,
+        }).catch((err) => {
+          logger.error(`Cash pending email failed for booking ${booking.bookingNumber}: ${err.message}`);
         });
       } catch (err) {
         logger.error(`Cash pending email failed for booking ${booking.bookingNumber}: ${err.message}`);
       }
     }
 
-    await BookingRepository.createAuditLog(customerId, 'CREATE_BOOKING', 'Booking', booking.id, null, booking);
+    BookingRepository.createAuditLog(customerId, 'CREATE_BOOKING', 'Booking', booking.id, null, {
+      bookingNumber: booking.bookingNumber,
+    }).catch((err) => {
+      logger.error(`Booking audit log failed for ${booking.id}: ${err.message}`);
+    });
     return presentBooking(await BookingRepository.findById(booking.id), { isStaff: false });
   }
 

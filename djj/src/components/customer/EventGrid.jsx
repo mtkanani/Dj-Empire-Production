@@ -11,7 +11,7 @@ const gridStyle = {
 };
 
 export const EventGrid = ({ events = [], loading = false, error = null, onRetry }) => {
-  if (loading) {
+  if (loading && events.length === 0) {
     return (
       <div className="event-grid" style={gridStyle}>
         {[1, 2, 3, 4, 5, 6].map((idx) => (
@@ -35,7 +35,7 @@ export const EventGrid = ({ events = [], loading = false, error = null, onRetry 
     );
   }
 
-  if (error) {
+  if (error && events.length === 0) {
     return (
       <div style={{ background: C.redDim, border: `1px solid ${C.red}`, borderRadius: '20px', padding: '40px 20px', textAlign: 'center', color: C.red, width: '100%' }}>
         <h3 style={{ margin: '0 0 8px', fontSize: '18px', fontFamily: 'Space Grotesk, sans-serif' }}>

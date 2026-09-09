@@ -619,4 +619,28 @@ export class AuthService {
 
     return { message: 'Password reset successfully. Please log in with your new password.' };
   }
+
+  static async changePassword(userId, oldPassword, newPassword) {
+    if (!userId) {
+      throw new AppError('Authentication required', HTTP_STATUS.UNAUTHORIZED);
+    }
+    if (oldPassword === newPassword) {
+      throw new AppError('New password must be different from the current password', HTTP_STATUS.BAD_REQUEST);
+    }
+
+    const user = await UserRepository.findById(userId);
+    if (!user || user.isDeleted) {
+      throw new AppError('User not found', HTTP_STATUS.NOT_FOUND);
+    }
+
+    const isMatch = await HashUtil.comparePassword(oldPassword, user.password);
+    if (!isMatch) {
+      throw new AppError('Current password is incorrect', HTTP_STATUS.BAD_REQUEST);
+    }
+
+    const newHashedPassword = await HashUtil.hashPassword(newPassword);
+    await UserRepository.updatePassword(userId, newHashedPassword);
+
+    return { message: 'Password changed successfully.' };
+  }
 }

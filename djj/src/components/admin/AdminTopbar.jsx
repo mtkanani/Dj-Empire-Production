@@ -48,7 +48,7 @@ export const AdminTopbar = ({ onMobileToggle }) => {
             color: C.text,
             cursor: 'pointer',
           }}
-          className="admin-mobile-toggle"
+          className="admin-mobile-toggle dashboard-mobile-toggle"
           aria-label="Open navigation menu"
         >
           <Menu size={22} />
@@ -60,7 +60,7 @@ export const AdminTopbar = ({ onMobileToggle }) => {
       {/* Right: Search, Notifications, Profile Dropdown */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
         {/* Quick Search */}
-        <div style={{ position: 'relative', width: '220px' }}>
+        <div style={{ position: 'relative', width: '220px' }} className="admin-topbar-search">
           <Search size={16} color={C.muted} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
           <input
             type="text"

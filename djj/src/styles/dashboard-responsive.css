@@ -1,0 +1,99 @@
+/* Organizer + Admin dashboards: phone / tablet / desktop */
+
+.dashboard-shell {
+  --dash-title: clamp(18px, 4.2vw, 24px);
+  --dash-sub: clamp(12px, 2.6vw, 14px);
+  --dash-body: clamp(12px, 2.5vw, 14px);
+  --dash-pad-y: clamp(12px, 3vw, 32px);
+  --dash-pad-x: clamp(12px, 3vw, 24px);
+}
+
+.dashboard-shell main.dashboard-main {
+  padding: var(--dash-pad-y) var(--dash-pad-x) !important;
+  max-width: 100%;
+}
+
+.dashboard-shell h1 {
+  font-size: var(--dash-title) !important;
+  line-height: 1.25 !important;
+  overflow-wrap: anywhere;
+}
+
+.dashboard-shell h2,
+.dashboard-shell h3,
+.dashboard-shell h4 {
+  overflow-wrap: anywhere;
+}
+
+.dashboard-shell p,
+.dashboard-shell label,
+.dashboard-shell td,
+.dashboard-shell th {
+  max-width: 100%;
+}
+
+.dashboard-shell table {
+  font-size: var(--dash-body);
+}
+
+.dashboard-mobile-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+}
+
+@media (max-width: 1024px) {
+  .organizer-sidebar-desktop,
+  .admin-sidebar-desktop {
+    display: none !important;
+  }
+
+  .dashboard-mobile-toggle,
+  .admin-mobile-toggle {
+    display: flex !important;
+  }
+
+  .organizer-topbar-search,
+  .admin-topbar-search {
+    display: none !important;
+  }
+
+  .dashboard-shell header {
+    padding: 0 12px !important;
+    height: 60px !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .dashboard-shell {
+    --dash-title: 20px;
+    --dash-sub: 13px;
+    --dash-body: 13px;
+  }
+
+  .dashboard-shell .admin-profile-name,
+  .dashboard-shell .organizer-profile-name {
+    display: none !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .dashboard-shell {
+    --dash-title: 18px;
+    --dash-sub: 12px;
+    --dash-body: 12px;
+    --dash-pad-x: 10px;
+    --dash-pad-y: 12px;
+  }
+
+  .dashboard-shell header {
+    height: 56px !important;
+    padding: 0 8px !important;
+  }
+
+  .dashboard-mobile-drawer {
+    width: min(280px, 88vw) !important;
+  }
+}

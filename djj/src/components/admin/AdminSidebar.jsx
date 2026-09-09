@@ -2,7 +2,7 @@ import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Building, Users, Calendar, Tag, MapPin, Landmark,
-  Receipt, CreditCard, ShieldAlert, Bell, Settings, ChevronLeft, ChevronRight, Banknote
+  Receipt, CreditCard, ShieldAlert, Bell, Settings, ChevronLeft, ChevronRight, Banknote, X
 } from 'lucide-react';
 import { C } from '../../constants/theme.js';
 
@@ -100,6 +100,18 @@ export const AdminSidebar = ({ collapsed, setCollapsed, isMobileOpen, setIsMobil
           {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
         </button>
       </div>
+
+      {isMobileOpen && (
+        <div style={{ padding: '8px 12px', display: 'flex', justifyContent: 'flex-end' }}>
+          <button
+            onClick={() => setIsMobileOpen(false)}
+            style={{ background: 'transparent', border: 'none', color: C.muted, cursor: 'pointer' }}
+            aria-label="Close navigation"
+          >
+            <X size={20} />
+          </button>
+        </div>
+      )}
 
       {/* Sidebar Nav Routes List */}
       <div style={{ flexGrow: 1, overflowY: 'auto', padding: '16px 10px', display: 'flex', flexDirection: 'column', gap: '4px' }}>

@@ -16,7 +16,7 @@ export const OrganizerLayout = ({ children }) => {
   }, [collapsed]);
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: C.bg, color: C.text, width: '100%', overflowX: 'hidden' }}>
+    <div className="dashboard-shell" style={{ display: 'flex', minHeight: '100vh', background: C.bg, color: C.text, width: '100%', overflowX: 'hidden' }}>
       {/* Desktop & Laptop Sidebar */}
       <div className="organizer-sidebar-desktop" style={{ height: '100vh', position: 'sticky', top: 0, zIndex: 90 }}>
         <OrganizerSidebar
@@ -42,11 +42,12 @@ export const OrganizerLayout = ({ children }) => {
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
-              width: '260px',
+              width: 'min(280px, 88vw)',
               height: '100%',
               background: C.bgDark,
               boxShadow: '4px 0 24px rgba(0, 0, 0, 0.8)',
             }}
+            className="dashboard-mobile-drawer"
           >
             <OrganizerSidebar
               collapsed={false}
@@ -63,6 +64,7 @@ export const OrganizerLayout = ({ children }) => {
         <OrganizerTopbar onMobileToggle={() => setIsMobileOpen((prev) => !prev)} />
 
         <main
+          className="dashboard-main"
           style={{
             padding: '32px 24px',
             flexGrow: 1,

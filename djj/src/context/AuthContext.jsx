@@ -7,7 +7,7 @@ export const AuthContext = createContext(null);
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(() => tokenManager.getUser());
   const [token, setToken] = useState(() => tokenManager.getAccessToken());
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   // Initialize Session Restoration
   useEffect(() => {

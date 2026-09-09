@@ -1,17 +1,59 @@
 import { api } from '../api.js';
 
+const eventDetailsCache = new Map();
+let categoriesCache = null;
+let citiesCache = null;
+let taxSettingsCache = null;
+let taxSettingsInflight = null;
+
 export const customerEventService = {
-  // Browse & Search Published Events
-  browseEvents: (params = {}) => api.get('/customer/events', { params }),
+  browseEvents: (params = {}) => api.get('/customer/events', { params: { limit: 24, ...params } }),
 
-  // Get Single Public Event Details
-  getEventDetails: (id) => api.get(`/customer/events/${id}`),
+  getEventDetails: (id) => {
+    if (eventDetailsCache.has(id)) {
+      return Promise.resolve(eventDetailsCache.get(id));
+    }
+    return api.get(`/customer/events/${id}`).then((res) => {
+      eventDetailsCache.set(id, res);
+      return res;
+    });
+  },
 
-  // Master Categories for Filtering
-  getCategories: () => api.get('/customer/categories'),
+  prefetchEventDetails: (id) => {
+    if (!id || eventDetailsCache.has(id)) return;
+    customerEventService.getEventDetails(id).catch(() => {});
+  },
 
-  // Master Cities for Filtering
-  getCities: () => api.get('/customer/cities'),
+  peekEventDetails: (id) => eventDetailsCache.get(id) || null,
 
-  getTaxSettings: () => api.get('/customer/tax-settings'),
+  getCategories: () => {
+    if (categoriesCache) return Promise.resolve(categoriesCache);
+    return api.get('/customer/categories').then((res) => {
+      categoriesCache = res;
+      return res;
+    });
+  },
+
+  getCities: () => {
+    if (citiesCache) return Promise.resolve(citiesCache);
+    return api.get('/customer/cities').then((res) => {
+      citiesCache = res;
+      return res;
+    });
+  },
+
+  getTaxSettings: () => {
+    if (taxSettingsCache) return Promise.resolve(taxSettingsCache);
+    if (taxSettingsInflight) return taxSettingsInflight;
+    taxSettingsInflight = api
+      .get('/customer/tax-settings')
+      .then((res) => {
+        taxSettingsCache = res;
+        return res;
+      })
+      .finally(() => {
+        taxSettingsInflight = null;
+      });
+    return taxSettingsInflight;
+  },
 };

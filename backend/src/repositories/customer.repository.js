@@ -14,10 +14,7 @@ export class CustomerRepository {
     };
 
     if (search) {
-      whereClause.OR = [
-        { title: { contains: search, mode: 'insensitive' } },
-        { description: { contains: search, mode: 'insensitive' } },
-      ];
+      whereClause.OR = [{ title: { contains: String(search) } }];
     }
 
     if (categoryId) whereClause.categoryId = categoryId;
@@ -38,23 +35,40 @@ export class CustomerRepository {
       };
     }
 
+    const take = Math.max(1, Math.min(36, parseInt(query.limit, 10) || 24));
+
     return prisma.event.findMany({
       where: whereClause,
-      include: {
-        category: true,
-        city: true,
-        venue: true,
-        eventVenue: true,
-        schedules: { orderBy: { startDate: 'asc' } },
-        images: true,
+      select: {
+        id: true,
+        title: true,
+        slug: true,
+        shortDescription: true,
+        currency: true,
+        price: true,
+        createdAt: true,
+        category: { select: { id: true, name: true } },
+        city: { select: { id: true, name: true } },
+        venue: { select: { id: true, name: true } },
+        eventVenue: { select: { venueName: true, city: true } },
+        schedules: {
+          select: { id: true, startDate: true, endDate: true, startTime: true, endTime: true },
+          orderBy: { startDate: 'asc' },
+          take: 1,
+        },
+        images: {
+          select: { imageUrl: true, type: true, displayOrder: true },
+          orderBy: { displayOrder: 'asc' },
+          take: 4,
+        },
         ticketTypes: {
           where: { isActive: true },
-        },
-        _count: {
-          select: { reviews: true },
+          select: { id: true, name: true, price: true },
+          take: 12,
         },
       },
       orderBy: { createdAt: 'desc' },
+      take,
     });
   }
 
@@ -79,6 +93,7 @@ export class CustomerRepository {
           include: { section: true },
         },
         reviews: {
+          take: 8,
           include: {
             user: {
               select: {

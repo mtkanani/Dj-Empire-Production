@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { Settings, Shield, User, Bell } from 'lucide-react';
+import { Settings } from 'lucide-react';
 import { C } from '../../constants/theme.js';
 import { Input } from '../../components/common/Input.jsx';
 import { Button } from '../../components/common/Button.jsx';
 import { useAuth } from '../../hooks/useAuth.js';
 import { useToast } from '../../hooks/useToast.js';
+import ChangePasswordCard from '../../components/account/ChangePasswordCard.jsx';
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -49,6 +50,10 @@ export default function SettingsPage() {
             Save Platform Settings
           </Button>
         </form>
+      </div>
+
+      <div style={{ marginTop: '20px' }}>
+        <ChangePasswordCard />
       </div>
     </div>
   );

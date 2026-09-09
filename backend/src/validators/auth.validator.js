@@ -111,3 +111,18 @@ export const resetPasswordSchema = z
     message: 'Password confirmation does not match',
     path: ['confirmPassword'],
   });
+
+export const changePasswordSchema = z
+  .object({
+    oldPassword: z.string().min(1, 'Current password is required'),
+    newPassword: z.string().min(8, 'New password must be at least 8 characters long'),
+    confirmPassword: z.string().optional(),
+  })
+  .refine((data) => data.newPassword !== data.oldPassword, {
+    message: 'New password must be different from the current password',
+    path: ['newPassword'],
+  })
+  .refine((data) => !data.confirmPassword || data.newPassword === data.confirmPassword, {
+    message: 'Password confirmation does not match',
+    path: ['confirmPassword'],
+  });

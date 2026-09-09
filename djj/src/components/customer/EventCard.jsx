@@ -5,6 +5,7 @@ import { C } from '../../constants/theme.js';
 import { formatCurrency } from '../../utils/formatters.js';
 import { getEventBannerUrl } from '../../utils/eventImage.js';
 import { formatEventDateTimeLine } from '../../utils/eventSchedule.js';
+import { customerEventService } from '../../services/customer/customerEventService.js';
 
 export const EventCard = ({ event }) => {
   const navigate = useNavigate();
@@ -29,6 +30,7 @@ export const EventCard = ({ event }) => {
   return (
     <div
       onClick={() => navigate(`/events/${event.id}`)}
+      onTouchStart={() => customerEventService.prefetchEventDetails(event.id)}
       style={{
         background: C.bgCard,
         border: `1px solid ${C.border}`,
@@ -41,6 +43,7 @@ export const EventCard = ({ event }) => {
         boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
       }}
       onMouseEnter={(e) => {
+        customerEventService.prefetchEventDetails(event.id);
         e.currentTarget.style.borderColor = C.borderGold;
         e.currentTarget.style.transform = 'translateY(-4px)';
       }}

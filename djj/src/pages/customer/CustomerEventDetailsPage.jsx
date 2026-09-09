@@ -3,7 +3,6 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Calendar, MapPin, Ticket, ShieldCheck, HelpCircle, Tag, Clock, Share2, CheckCircle2 } from 'lucide-react';
 import { C } from '../../constants/theme.js';
 import { customerEventService } from '../../services/customer/customerEventService.js';
-import { eventService } from '../../services/organizer/eventService.js';
 import { CustomerNavbar } from '../../components/customer/CustomerNavbar.jsx';
 import { Footer } from '../../components/Layout.jsx';
 import { EventFAQAccordion } from '../../components/customer/EventFAQAccordion.jsx';
@@ -18,42 +17,28 @@ export default function CustomerEventDetailsPage() {
   const navigate = useNavigate();
   const { showToast } = useToast();
 
-  const [event, setEvent] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const cached = customerEventService.peekEventDetails(id);
+  const cachedEvent = cached ? cached.data || cached : null;
+
+  const [event, setEvent] = useState(cachedEvent);
+  const [loading, setLoading] = useState(!cachedEvent);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     const fetchEvent = async () => {
-      setLoading(true);
+      const existing = customerEventService.peekEventDetails(id);
+      const existingEvent = existing ? existing.data || existing : null;
+      if (!existingEvent) setLoading(true);
       setError(null);
       try {
         const res = await customerEventService.getEventDetails(id);
         const data = res.data || res;
         if (!data) throw new Error('Event not found or unavailable');
 
-        // Parallel fallback fetch for Policy and FAQs if missing on primary object
-        const promises = [];
-        if (!data.policy && !data.policies && !data.eventPolicies) {
-          promises.push(eventService.getPolicy(id).catch(() => null));
-        } else {
-          promises.push(Promise.resolve({ data: data.policy || data.policies || data.eventPolicies }));
-        }
-
-        if ((!data.faqs || data.faqs.length === 0) && (!data.eventFaqs || data.eventFaqs.length === 0)) {
-          promises.push(eventService.getFAQs(id).catch(() => null));
-        } else {
-          promises.push(Promise.resolve({ data: data.faqs || data.eventFaqs }));
-        }
-
-        const [policyRes, faqsRes] = await Promise.all(promises);
-
-        const policyData = policyRes?.data || policyRes || data.policy || data.policies || null;
-        const faqsData = faqsRes?.data || faqsRes || data.faqs || data.eventFaqs || [];
-
         setEvent({
           ...data,
-          policy: policyData,
-          faqs: Array.isArray(faqsData) ? faqsData : [],
+          policy: data.policy || data.policies || data.eventPolicies || null,
+          faqs: Array.isArray(data.faqs) ? data.faqs : data.eventFaqs || [],
         });
       } catch (err) {
         setError(err.message || 'Unable to load event details.');
@@ -72,7 +57,7 @@ export default function CustomerEventDetailsPage() {
     }
   };
 
-  if (loading) {
+  if (loading && !event) {
     return (
       <div style={{ minHeight: '100vh', background: C.bgMain, color: C.text, display: 'flex', flexDirection: 'column' }}>
         <CustomerNavbar />

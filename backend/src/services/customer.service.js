@@ -2,7 +2,6 @@ import { UserRepository } from '../repositories/user.repository.js';
 import { CustomerRepository } from '../repositories/customer.repository.js';
 import { BookingRepository } from '../repositories/booking.repository.js';
 import { OrganizerEventRepository } from '../repositories/organizerEvent.repository.js';
-import { HashUtil } from '../utils/hash.util.js';
 import { AppError } from '../utils/AppError.js';
 import { HTTP_STATUS } from '../constants/httpStatusCodes.js';
 import { formatStoredPhone } from '../utils/phone.util.js';
@@ -68,16 +67,8 @@ export class CustomerService {
   }
 
   static async changePassword(userId, oldPassword, newPassword) {
-    const user = await UserRepository.findById(userId);
-    if (!user) throw new AppError('User not found', HTTP_STATUS.NOT_FOUND);
-
-    const isMatch = await HashUtil.comparePassword(oldPassword, user.password);
-    if (!isMatch) throw new AppError('Current password is incorrect', HTTP_STATUS.BAD_REQUEST);
-
-    const newHashedPassword = await HashUtil.hashPassword(newPassword);
-    await UserRepository.updatePassword(userId, newHashedPassword);
-
-    return { message: 'Password changed successfully.' };
+    const { AuthService } = await import('./auth.service.js');
+    return AuthService.changePassword(userId, oldPassword, newPassword);
   }
 
   static async deleteAccount(userId) {

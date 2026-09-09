@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { AuthController } from '../../controllers/auth.controller.js';
 import { validate } from '../../middlewares/validate.middleware.js';
 import { authLimiter, otpLimiter } from '../../middlewares/rateLimiter.middleware.js';
+import { authenticate } from '../../middlewares/auth.middleware.js';
 import {
   customerRegisterSchema,
   organizerRegisterSchema,
@@ -13,6 +14,7 @@ import {
   resetPasswordSchema,
   verifyResetOtpSchema,
   resendResetOtpSchema,
+  changePasswordSchema,
 } from '../../validators/auth.validator.js';
 
 const router = Router();
@@ -245,5 +247,7 @@ router.post('/resend-reset-otp', otpLimiter, validate(resendResetOtpSchema), Aut
  *         description: Password updated successfully
  */
 router.post('/reset-password', authLimiter, validate(resetPasswordSchema), AuthController.resetPassword);
+
+router.patch('/change-password', authenticate, validate(changePasswordSchema), AuthController.changePassword);
 
 export default router;

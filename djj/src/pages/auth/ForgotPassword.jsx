@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { AuthLayout } from '../../components/auth/AuthLayout.jsx';
 import { AuthInput } from '../../components/auth/AuthInput.jsx';
 import { LoadingButton } from '../../components/auth/LoadingButton.jsx';
@@ -12,9 +12,10 @@ import { C } from '../../constants/theme.js';
 
 export default function ForgotPassword() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { showToast } = useToast();
 
-  const [identifier, setIdentifier] = useState('');
+  const [identifier, setIdentifier] = useState(location.state?.identifier || '');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
