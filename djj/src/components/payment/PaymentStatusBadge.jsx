@@ -27,6 +27,13 @@ export const PaymentStatusBadge = ({ status = 'Pending', gateway = null }) => {
       bgColor: C.greenDim,
       icon: CheckCircle2,
     };
+  } else if (normalized === 'awaitingpayment' || normalized === 'awaiting_payment' || normalized === 'pending') {
+    config = {
+      label: isCash ? 'Pending Cash Verification' : 'Pending',
+      color: C.amber || C.gold,
+      bgColor: C.amberDim || C.goldDim,
+      icon: Clock,
+    };
   } else if (normalized === 'authorized') {
     config = {
       label: 'Authorized',

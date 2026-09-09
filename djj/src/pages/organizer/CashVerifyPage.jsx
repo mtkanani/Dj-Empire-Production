@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Search, Banknote, AlertCircle } from 'lucide-react';
 import { C } from '../../constants/theme.js';
 import { QRScanner } from '../../components/checkin/QRScanner.jsx';
@@ -12,7 +13,8 @@ import { tokenManager } from '../../utils/tokenManager.js';
 
 export default function CashVerifyPage() {
   const { token } = useAuth();
-  const [bookingNumber, setBookingNumber] = useState('');
+  const [searchParams] = useSearchParams();
+  const [bookingNumber, setBookingNumber] = useState(() => (searchParams.get('bookingNumber') || '').toUpperCase());
   const [booking, setBooking] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -40,6 +42,13 @@ export default function CashVerifyPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (bookingNumber.trim()) {
+      handleSearch();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleScan = async (qrToken) => {
     setLoading(true);

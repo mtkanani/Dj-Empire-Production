@@ -71,33 +71,93 @@ export class PaymentRepository {
     if (eventId) andFilters.push({ eventId });
     const whereClause = { AND: andFilters };
 
-    const [total, payments] = await Promise.all([
-      prisma.payment.count({ where: whereClause }),
-      prisma.payment.findMany({
-        where: whereClause,
-        include: {
-          user: {
-            select: { id: true, email: true, firstName: true, lastName: true, phone: true },
+    const customerSelect = { id: true, email: true, firstName: true, lastName: true, phone: true };
+
+    const payments = await prisma.payment.findMany({
+      where: whereClause,
+      include: {
+        user: { select: customerSelect },
+        event: { select: { id: true, title: true, organizerId: true } },
+        booking: {
+          select: {
+            id: true,
+            bookingNumber: true,
+            bookingStatus: true,
+            paymentGateway: true,
+            paymentStatus: true,
+            subtotal: true,
+            gstAmount: true,
+            platformFee: true,
+            bookingFee: true,
+            serviceCharge: true,
+            totalAmount: true,
+            currency: true,
+            customer: { select: customerSelect },
+            event: { select: { id: true, title: true } },
           },
-          event: { select: { id: true, title: true, organizerId: true } },
-          booking: {
-            select: {
-              id: true,
-              bookingNumber: true,
-              bookingStatus: true,
-              event: { select: { id: true, title: true } },
-            },
-          },
-          refunds: true,
         },
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limitNumber,
-      }),
-    ]);
+        refunds: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const cashWhere = {
+      paymentGateway: 'CASH',
+      event: { organizerId },
+    };
+    if (eventId) cashWhere.eventId = eventId;
+
+    const cashBookings = await prisma.booking.findMany({
+      where: cashWhere,
+      include: {
+        customer: { select: customerSelect },
+        event: { select: { id: true, title: true, organizerId: true } },
+        payments: { select: { id: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const paymentBookingIds = new Set(payments.map((p) => p.bookingId).filter(Boolean));
+    const synthetic = cashBookings
+      .filter((booking) => !(booking.payments || []).length && !paymentBookingIds.has(booking.id))
+      .filter((booking) => !paymentStatus || booking.paymentStatus === paymentStatus)
+      .map((booking) => ({
+        id: `cash-hold-${booking.id}`,
+        paymentNumber: booking.bookingNumber,
+        bookingId: booking.id,
+        synthetic: true,
+        user: booking.customer,
+        event: booking.event,
+        booking: {
+          id: booking.id,
+          bookingNumber: booking.bookingNumber,
+          bookingStatus: booking.bookingStatus,
+          event: booking.event,
+          customer: booking.customer,
+        },
+        gateway: 'CASH',
+        paymentMethod: 'CASH',
+        paymentStatus: booking.paymentStatus,
+        currency: booking.currency,
+        subtotal: booking.subtotal,
+        discount: booking.couponDiscount || booking.discount || 0,
+        taxAmount: booking.gstAmount,
+        platformFee: booking.platformFee,
+        bookingFee: booking.bookingFee,
+        serviceCharge: booking.serviceCharge,
+        totalAmount: booking.totalAmount,
+        createdAt: booking.createdAt,
+        paymentDate: booking.cashVerifiedAt || null,
+      }));
+
+    const merged = [...payments, ...synthetic].sort(
+      (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+    );
+    const total = merged.length;
+    const data = merged.slice(skip, skip + limitNumber);
 
     return {
-      data: payments,
+      data,
       meta: { page: pageNumber, limit: limitNumber, total, totalPages: Math.ceil(total / limitNumber) || 1 },
     };
   }

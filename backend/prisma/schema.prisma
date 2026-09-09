@@ -543,7 +543,7 @@ model Booking {
   // tickets and emails can still be found by staff search.
   legacyBookingNumber String?
   customerId        String        @db.ObjectId
-  customer          User          @relation("CustomerBookings", fields: [customerId], references: [id], onDelete: Cascade)
+  customer          User?         @relation("CustomerBookings", fields: [customerId], references: [id], onDelete: Cascade)
   eventId           String        @db.ObjectId
   event             Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
   scheduleId        String?       @db.ObjectId
@@ -670,7 +670,7 @@ model Payment {
   eventId              String?        @db.ObjectId
   event                Event?         @relation(fields: [eventId], references: [id])
   userId               String         @db.ObjectId
-  user                 User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user                 User?          @relation(fields: [userId], references: [id], onDelete: Cascade)
   gateway              PaymentGateway @default(RAZORPAY)
   gatewayOrderId       String?
   gatewayPaymentId     String?

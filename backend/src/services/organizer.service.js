@@ -9,6 +9,7 @@ import { VenueRepository } from '../repositories/venue.repository.js';
 import { SectionRepository } from '../modules/ticketing/repositories/section.repository.js';
 import { AppError } from '../utils/AppError.js';
 import { HTTP_STATUS } from '../constants/httpStatusCodes.js';
+import { presentBooking } from '../modules/booking/utils/presentBooking.util.js';
 
 /**
  * Event Organizer Business Service
@@ -195,13 +196,14 @@ export class OrganizerService {
 
   // ==================== BOOKINGS & SALES ====================
   static async getBookings(organizerId, role = null) {
-    return OrganizerEventRepository.findBookingsByOrganizer(organizerId, role);
+    const bookings = await OrganizerEventRepository.findBookingsByOrganizer(organizerId, role);
+    return bookings.map((booking) => presentBooking(booking, { isStaff: true }));
   }
 
   static async getBookingById(bookingId, organizerId) {
     const booking = await OrganizerEventRepository.findBookingById(bookingId, organizerId);
     if (!booking) throw new AppError('Booking details not found or access denied', HTTP_STATUS.NOT_FOUND);
-    return booking;
+    return presentBooking(booking, { isStaff: true });
   }
 
   // ==================== QR CHECK-IN & ATTENDANCE ====================

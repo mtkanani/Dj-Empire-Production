@@ -6,6 +6,7 @@ import { BookingRepository } from '../../booking/repositories/booking.repository
 import { AppError } from '../../../utils/AppError.js';
 import { HTTP_STATUS } from '../../../constants/httpStatusCodes.js';
 import { PAID_PAYMENT_STATUSES, STAFF_ROLES, isPaid } from '../../../constants/paymentStatus.js';
+import { presentCustomer } from '../../booking/utils/presentBooking.util.js';
 
 /**
  * Domain Service for Payment Processing using Strategy Pattern Providers
@@ -147,6 +148,13 @@ export class PaymentService {
   }
 
   static async getOrganizerPayments(organizerId, query = {}) {
-    return PaymentRepository.findByOrganizer(organizerId, query);
+    const result = await PaymentRepository.findByOrganizer(organizerId, query);
+    return {
+      ...result,
+      data: (result.data || []).map((payment) => ({
+        ...payment,
+        user: presentCustomer(payment.user || payment.booking?.customer),
+      })),
+    };
   }
 }

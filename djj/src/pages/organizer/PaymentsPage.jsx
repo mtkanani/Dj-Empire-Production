@@ -6,10 +6,20 @@ import { eventService as organizerEventService } from '../../services/organizer/
 import { PaymentStatusBadge } from '../../components/payment/PaymentStatusBadge.jsx';
 import { formatDate, formatCurrency } from '../../utils/formatters.js';
 
-const customerLabel = (user) => {
-  if (!user) return 'Customer';
+const customerLabel = (payment) => {
+  const user = payment?.user || payment?.booking?.customer;
+  if (!user) return 'Unknown customer';
   const name = `${user.firstName || ''} ${user.lastName || ''}`.trim();
-  return name || user.email || 'Customer';
+  return name || user.email || 'Unknown customer';
+};
+
+const methodLabel = (payment) => {
+  const gateway = String(payment?.gateway || payment?.paymentMethod || '').toUpperCase();
+  if (gateway === 'CASH') return 'Cash';
+  if (gateway === 'RAZORPAY') return 'Razorpay';
+  if (gateway === 'STRIPE') return 'Stripe';
+  if (gateway === 'BANK_TRANSFER') return 'Bank Transfer';
+  return gateway || '—';
 };
 
 export default function PaymentsPage() {
@@ -67,6 +77,8 @@ export default function PaymentsPage() {
       p.user?.firstName,
       p.user?.lastName,
       p.user?.email,
+      p.booking?.customer?.firstName,
+      p.booking?.customer?.email,
       p.event?.title,
       p.booking?.event?.title,
     ]
@@ -75,7 +87,7 @@ export default function PaymentsPage() {
       .toLowerCase();
 
     const matchesSearch = !search || haystack.includes(search.toLowerCase());
-    const matchesGateway = !gatewayFilter || String(p.gateway || '').toUpperCase() === gatewayFilter;
+    const matchesGateway = !gatewayFilter || String(p.gateway || p.paymentMethod || '').toUpperCase() === gatewayFilter;
     return matchesSearch && matchesGateway;
   });
 
@@ -86,7 +98,7 @@ export default function PaymentsPage() {
           Event Payments
         </h1>
         <p style={{ margin: '4px 0 0', color: C.muted, fontSize: '13px' }}>
-          Customer payments for events you organize
+          All customer payments for your events, including Cash and Razorpay
         </p>
       </div>
 
@@ -96,7 +108,7 @@ export default function PaymentsPage() {
             <Search size={16} color={C.muted} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
             <input
               type="text"
-              placeholder="Search customer, event, or payment..."
+              placeholder="Search customer, booking, or payment..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               style={{ width: '100%', padding: '8px 12px 8px 36px', background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: '12px', color: C.text, fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
@@ -121,11 +133,10 @@ export default function PaymentsPage() {
               onChange={(e) => setGatewayFilter(e.target.value)}
               style={{ background: 'transparent', border: 'none', color: C.text, fontSize: '13px', outline: 'none' }}
             >
-              <option value="" style={{ background: C.bgCard }}>All Gateways</option>
-              <option value="RAZORPAY" style={{ background: C.bgCard }}>Razorpay</option>
+              <option value="" style={{ background: C.bgCard }}>All Methods</option>
               <option value="CASH" style={{ background: C.bgCard }}>Cash</option>
+              <option value="RAZORPAY" style={{ background: C.bgCard }}>Razorpay</option>
               <option value="STRIPE" style={{ background: C.bgCard }}>Stripe</option>
-              <option value="CASH" style={{ background: C.bgCard }}>Cash / Offline</option>
               <option value="BANK_TRANSFER" style={{ background: C.bgCard }}>Bank Transfer</option>
             </select>
           </div>
@@ -138,10 +149,11 @@ export default function PaymentsPage() {
               style={{ background: 'transparent', border: 'none', color: C.text, fontSize: '13px', outline: 'none' }}
             >
               <option value="" style={{ background: C.bgCard }}>All Statuses</option>
+              <option value="Pending" style={{ background: C.bgCard }}>Pending</option>
+              <option value="CASH_RECEIVED" style={{ background: C.bgCard }}>Cash Received</option>
               <option value="Paid" style={{ background: C.bgCard }}>Paid</option>
-              <option value="Created" style={{ background: C.bgCard }}>Pending</option>
+              <option value="Created" style={{ background: C.bgCard }}>Created</option>
               <option value="Failed" style={{ background: C.bgCard }}>Failed</option>
-              <option value="Refunded" style={{ background: C.bgCard }}>Refunded</option>
             </select>
           </div>
         </div>
@@ -157,17 +169,31 @@ export default function PaymentsPage() {
 
       {selectedPayment && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
-          <div style={{ background: C.bgCard, border: `1px solid ${C.borderGold}`, borderRadius: '24px', padding: '24px', maxWidth: '440px', width: '100%', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div style={{ background: C.bgCard, border: `1px solid ${C.borderGold}`, borderRadius: '24px', padding: '24px', maxWidth: '480px', width: '100%', display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <h3 style={{ margin: 0, fontFamily: 'Space Grotesk, sans-serif', fontSize: '18px', color: C.gold }}>
               {selectedPayment.paymentNumber || selectedPayment.id}
             </h3>
             <div style={{ fontSize: '13px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <div><span style={{ color: C.muted }}>Customer:</span> <strong style={{ color: C.text }}>{customerLabel(selectedPayment.user)}</strong></div>
-              <div><span style={{ color: C.muted }}>Email:</span> <strong style={{ color: C.text }}>{selectedPayment.user?.email || '—'}</strong></div>
+              <div><span style={{ color: C.muted }}>Customer:</span> <strong style={{ color: C.text }}>{customerLabel(selectedPayment)}</strong></div>
+              <div><span style={{ color: C.muted }}>Email:</span> <strong style={{ color: C.text }}>{selectedPayment.user?.email || selectedPayment.booking?.customer?.email || '—'}</strong></div>
               <div><span style={{ color: C.muted }}>Event:</span> <strong style={{ color: C.text }}>{selectedPayment.event?.title || selectedPayment.booking?.event?.title || '—'}</strong></div>
-              <div><span style={{ color: C.muted }}>Booking:</span> <strong style={{ color: C.gold, fontFamily: 'Space Grotesk, monospace' }}>#{selectedPayment.booking?.bookingNumber || selectedPayment.bookingId}</strong></div>
-              <div><span style={{ color: C.muted }}>Gateway:</span> <strong style={{ color: C.blue }}>{selectedPayment.gateway || '—'}</strong></div>
-              <div><span style={{ color: C.muted }}>Total Amount:</span> <strong style={{ color: C.green, fontSize: '16px' }}>{formatCurrency(selectedPayment.totalAmount, selectedPayment.currency)}</strong></div>
+              <div><span style={{ color: C.muted }}>Booking ID:</span> <strong style={{ color: C.gold, fontFamily: 'Space Grotesk, monospace' }}>{selectedPayment.booking?.bookingNumber || '—'}</strong></div>
+              <div><span style={{ color: C.muted }}>Method:</span> <strong style={{ color: C.blue }}>{methodLabel(selectedPayment)}</strong></div>
+              <div><span style={{ color: C.muted }}>Ticket subtotal:</span> <strong style={{ color: C.text }}>{formatCurrency(selectedPayment.subtotal || selectedPayment.booking?.subtotal || 0, selectedPayment.currency)}</strong></div>
+              {(selectedPayment.platformFee || 0) > 0 && (
+                <div><span style={{ color: C.muted }}>Platform fee:</span> <strong style={{ color: C.text }}>{formatCurrency(selectedPayment.platformFee, selectedPayment.currency)}</strong></div>
+              )}
+              {(selectedPayment.bookingFee || 0) > 0 && (
+                <div><span style={{ color: C.muted }}>Booking fee:</span> <strong style={{ color: C.text }}>{formatCurrency(selectedPayment.bookingFee, selectedPayment.currency)}</strong></div>
+              )}
+              {(selectedPayment.serviceCharge || 0) > 0 && (
+                <div><span style={{ color: C.muted }}>Service charge:</span> <strong style={{ color: C.text }}>{formatCurrency(selectedPayment.serviceCharge, selectedPayment.currency)}</strong></div>
+              )}
+              <div><span style={{ color: C.muted }}>GST:</span> <strong style={{ color: C.text }}>{formatCurrency(selectedPayment.taxAmount || selectedPayment.booking?.gstAmount || 0, selectedPayment.currency)}</strong></div>
+              <div><span style={{ color: C.muted }}>Total:</span> <strong style={{ color: C.green, fontSize: '16px' }}>{formatCurrency(selectedPayment.totalAmount, selectedPayment.currency)}</strong></div>
+              {selectedPayment.gatewayPaymentId && (
+                <div><span style={{ color: C.muted }}>Gateway payment ID:</span> <strong style={{ color: C.text }}>{selectedPayment.gatewayPaymentId}</strong></div>
+              )}
               <div><span style={{ color: C.muted }}>Date:</span> <strong style={{ color: C.text }}>{formatDate(selectedPayment.paymentDate || selectedPayment.createdAt)}</strong></div>
             </div>
             <button
@@ -189,14 +215,15 @@ export default function PaymentsPage() {
           No customer payments found for your events.
         </div>
       ) : (
-        <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: '20px', overflow: 'hidden' }}>
+        <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: '20px', overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
             <thead>
               <tr style={{ borderBottom: `1px solid ${C.border}`, color: C.muted, textTransform: 'uppercase', fontSize: '11px' }}>
                 <th style={{ padding: '14px 16px' }}>Payment Ref</th>
                 <th style={{ padding: '14px 16px' }}>Customer</th>
                 <th style={{ padding: '14px 16px' }}>Event</th>
-                <th style={{ padding: '14px 16px' }}>Gateway</th>
+                <th style={{ padding: '14px 16px' }}>Booking ID</th>
+                <th style={{ padding: '14px 16px' }}>Method</th>
                 <th style={{ padding: '14px 16px' }}>Amount</th>
                 <th style={{ padding: '14px 16px' }}>Status</th>
                 <th style={{ padding: '14px 16px', textAlign: 'right' }}>Actions</th>
@@ -209,18 +236,25 @@ export default function PaymentsPage() {
                     #{p.paymentNumber || p.id}
                   </td>
                   <td style={{ padding: '14px 16px', color: C.text, fontWeight: 600 }}>
-                    <div>{customerLabel(p.user)}</div>
-                    {p.user?.email && <span style={{ fontSize: '11px', color: C.muted }}>{p.user.email}</span>}
+                    <div>{customerLabel(p)}</div>
+                    {(p.user?.email || p.booking?.customer?.email) && (
+                      <span style={{ fontSize: '11px', color: C.muted }}>{p.user?.email || p.booking?.customer?.email}</span>
+                    )}
                   </td>
                   <td style={{ padding: '14px 16px', color: C.text }}>
                     {p.event?.title || p.booking?.event?.title || '—'}
                   </td>
-                  <td style={{ padding: '14px 16px', color: C.blue }}>{p.gateway || '—'}</td>
+                  <td style={{ padding: '14px 16px', color: C.gold, fontFamily: 'Space Grotesk, monospace', fontWeight: 700 }}>
+                    {p.booking?.bookingNumber || '—'}
+                  </td>
+                  <td style={{ padding: '14px 16px' }}>
+                    <span style={{ color: C.blue, fontWeight: 700 }}>{methodLabel(p)}</span>
+                  </td>
                   <td style={{ padding: '14px 16px', color: C.text, fontWeight: 700 }}>
                     {formatCurrency(p.totalAmount, p.currency)}
                   </td>
                   <td style={{ padding: '14px 16px' }}>
-                    <PaymentStatusBadge status={p.paymentStatus} />
+                    <PaymentStatusBadge status={p.paymentStatus} gateway={p.gateway} />
                   </td>
                   <td style={{ padding: '14px 16px', textAlign: 'right' }}>
                     <button

@@ -99,9 +99,7 @@ import SeatMapPreviewPage from '../pages/organizer/SeatMapPreviewPage.jsx';
 
 import BookingsPage from '../pages/organizer/BookingsPage.jsx';
 import OrganizerPaymentsPage from '../pages/organizer/PaymentsPage.jsx';
-import OrganizerRefundsPage from '../pages/organizer/RefundsPage.jsx';
 import InvoicesPage from '../pages/organizer/InvoicesPage.jsx';
-import OrganizerSettlementsPage from '../pages/organizer/SettlementsPage.jsx';
 import OrganizerCheckInPage from '../pages/organizer/CheckInPage.jsx';
 import GatesPage from '../pages/organizer/GatesPage.jsx';
 import ScannersPage from '../pages/organizer/ScannersPage.jsx';
@@ -359,12 +357,8 @@ export default function AppRoutes({ setView }) {
         <Route path="financial-dashboard" element={<FinancialDashboardPage />} />
         <Route path="payments" element={<OrganizerPaymentsPage />} />
         <Route path="payments/:id" element={<OrganizerPaymentsPage />} />
-        <Route path="refunds" element={<OrganizerRefundsPage />} />
-        <Route path="refunds/:id" element={<OrganizerRefundsPage />} />
         <Route path="invoices" element={<InvoicesPage />} />
         <Route path="invoices/:id" element={<InvoicesPage />} />
-        <Route path="settlements" element={<OrganizerSettlementsPage />} />
-        <Route path="settlements/:id" element={<OrganizerSettlementsPage />} />
 
         <Route path="profile" element={<ProfilePage />} />
         <Route path="settings" element={<OrganizerSettingsPage />} />

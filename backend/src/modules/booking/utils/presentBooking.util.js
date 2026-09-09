@@ -11,6 +11,26 @@ export function maskMobile(mobile) {
  * Strip identity-document storage keys from API responses.
  * Customers see names/mobiles and a boolean; staff additionally receive document ids.
  */
+export function presentCustomer(customer) {
+  if (!customer) {
+    return {
+      id: null,
+      firstName: 'Unknown',
+      lastName: 'customer',
+      email: null,
+      phone: null,
+      missing: true,
+    };
+  }
+  return customer;
+}
+
+export function customerDisplayName(customer) {
+  const c = presentCustomer(customer);
+  const name = `${c.firstName || ''} ${c.lastName || ''}`.trim();
+  return name || c.email || 'Unknown customer';
+}
+
 export function presentBooking(booking, { isStaff = false } = {}) {
   if (!booking) return booking;
 
@@ -31,6 +51,7 @@ export function presentBooking(booking, { isStaff = false } = {}) {
 
   return {
     ...booking,
+    customer: presentCustomer(booking.customer),
     attendees,
     displayPaymentStatus: getPaymentDisplayStatus(booking.paymentStatus, booking.paymentGateway),
   };
