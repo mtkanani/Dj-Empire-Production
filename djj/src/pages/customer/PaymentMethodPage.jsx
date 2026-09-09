@@ -36,17 +36,8 @@ export default function PaymentMethodPage() {
       setError('Attendee details are incomplete. Go back and fill every ticket.');
       return;
     }
-    const identityOptional = import.meta.env.DEV;
-    if (
-      attendees.some(
-        (a) => !a.fullName || !a.mobileNumber || (!identityOptional && !a.identityDocumentId)
-      )
-    ) {
-      setError(
-        identityOptional
-          ? 'Every attendee needs a name and mobile number.'
-          : 'Every attendee needs a name, mobile number, and identity document.'
-      );
+    if (attendees.some((a) => !a.fullName || !a.mobileNumber)) {
+      setError('Every attendee needs a name and mobile number.');
       return;
     }
 

@@ -1,6 +1,5 @@
 import { Role, BookingStatus, PaymentGateway, PaymentStatus } from '@prisma/client';
 import { prisma } from '../../../config/prisma.js';
-import { env } from '../../../config/env.js';
 import { BookingRepository } from '../repositories/booking.repository.js';
 import { ReservationRepository } from '../repositories/reservation.repository.js';
 import { EventRepository } from '../../event/repositories/event.repository.js';
@@ -84,11 +83,7 @@ export class BookingService {
       );
     }
 
-    const identityRequired = env.NODE_ENV === 'production';
     const documentIds = attendees.map((a) => a.identityDocumentId).filter(Boolean);
-    if (identityRequired && documentIds.length !== attendees.length) {
-      throw new AppError('Identity document is required for every attendee', HTTP_STATUS.BAD_REQUEST);
-    }
     if (new Set(documentIds).size !== documentIds.length) {
       throw new AppError('Each attendee must upload a unique identity document', HTTP_STATUS.BAD_REQUEST);
     }

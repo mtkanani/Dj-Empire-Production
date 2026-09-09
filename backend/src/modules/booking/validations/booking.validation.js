@@ -1,14 +1,10 @@
 import { z } from 'zod';
 import { isValidPhone, normalizePhone } from '../../../utils/phone.util.js';
-import { env } from '../../../config/env.js';
 
-const identityDocumentIdSchema =
-  env.NODE_ENV === 'production'
-    ? z.string().min(1, 'Identity document is required for every attendee')
-    : z
-        .string()
-        .optional()
-        .transform((val) => (val && val.trim() ? val.trim() : undefined));
+const identityDocumentIdSchema = z
+  .string()
+  .optional()
+  .transform((val) => (val && val.trim() ? val.trim() : undefined));
 
 /**
  * Zod Validation Schemas for Customer Booking & Reservation Module

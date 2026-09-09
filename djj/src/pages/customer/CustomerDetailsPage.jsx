@@ -13,8 +13,6 @@ import { useToast } from '../../hooks/useToast.js';
 import { validatePhone } from '../../utils/validation.js';
 import { identityDocumentService } from '../../services/customer/identityDocumentService.js';
 
-const IDENTITY_OPTIONAL = import.meta.env.DEV;
-
 const emptyAttendee = (index, user) => ({
   fullName: index === 0 ? `${user?.firstName || ''} ${user?.lastName || ''}`.trim() : '',
   mobileNumber: index === 0 ? user?.phone || '' : '',
@@ -107,10 +105,6 @@ export default function CustomerDetailsPage() {
         setError(`Attendee ${i + 1}: ${phoneErr}`);
         return;
       }
-      if (!IDENTITY_OPTIONAL && !row.identityDocumentId) {
-        setError(`Attendee ${i + 1}: identity document photo is required`);
-        return;
-      }
     }
 
     setAttendees(rows);
@@ -147,9 +141,7 @@ export default function CustomerDetailsPage() {
               Attendee details ({totalQty} ticket{totalQty > 1 ? 's' : ''})
             </h3>
             <p style={{ margin: 0, color: C.muted, fontSize: '13px' }}>
-              {IDENTITY_OPTIONAL
-                ? 'Enter information for every person attending. Name and mobile are required. Identity-document photo is optional while testing locally.'
-                : 'Enter information for every person attending. Each ticket needs its own name, mobile number, and identity-document photo.'}
+              Enter information for every person attending. Name and mobile are required. Identity-document photo is optional.
             </p>
             {rows.map((row, index) => (
               <div key={index} style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: '20px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -173,7 +165,7 @@ export default function CustomerDetailsPage() {
                   style={{ width: '100%', padding: '10px 14px', background: 'rgba(255,255,255,0.03)', border: `1px solid ${C.border}`, borderRadius: '10px', color: C.text, fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
                 />
                 <label style={{ color: C.muted, fontSize: '12px', fontWeight: 600 }}>
-                  Identity Document {IDENTITY_OPTIONAL ? '(optional for testing)' : '* (photo)'}
+                  Identity Document (optional photo)
                 </label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px', borderRadius: '12px', border: `1px dashed ${C.borderGold}`, cursor: 'pointer', color: C.gold }}>
                   <Upload size={16} />
